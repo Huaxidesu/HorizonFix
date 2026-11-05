@@ -26,6 +26,9 @@ public class FixConfig {
     /** OpenBlocks 没有找到落点时补一个（缺陷 B）。 */
     public static boolean graveRescueMissing = true;
 
+    /** 同一玩家在同一 tick 内只生成一座墓碑。 */
+    public static boolean graveSinglePerTick = true;
+
     /** 搜索半径，按方块计。 */
     public static int graveSearchRadius = 8;
 
@@ -88,6 +91,12 @@ public class FixConfig {
                     "grave",
                     graveRescueMissing,
                     "Supply a position when OpenBlocks failed to find one ('No location for grave found').");
+            graveSinglePerTick = cfg.getBoolean(
+                    "singlePerTick",
+                    "grave",
+                    graveSinglePerTick,
+                    "Only one grave per player per tick. A player dying twice in the same tick otherwise "
+                            + "produces two graves and duplicates the extra drops.");
             graveSearchRadius = cfg.getInt(
                     "searchRadius",
                     "grave",

@@ -74,6 +74,14 @@ tryPlaceGrave(world, evt.getX(), evt.getY(), evt.getZ(), ...);       // 用事�
 
 全部通过反射访问 WR-CBE 内部结构，任何一步失败都只让补丁静默失效，不影响服务器启动。
 
+### 一死两碑
+
+同一 tick 内触发两次死亡时，OpenBlocks 会排队两次放置：第一座墓碑拿到全部掉落，第二座只剩死亡时
+额外追加的物品（例如大头插件补的玩家头颅），于是出现「一死两碑」且头颅多一颗。
+
+`GraveSpawnEvent` 可取消，本模组在 `HIGHEST` 记录每个玩家的上次生成 tick，同 tick 再来一次就取消，
+OpenBlocks 会把该次掉落丢回地面，不再产生第二座墓碑。开关为 `grave.singlePerTick`。
+
 ---
 
 ## 三、墓碑位置提醒（`graveTracker`）
@@ -128,6 +136,7 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 | `enabled` | `true` | 墓碑修正总开关 |
 | `avoidLiquid` | `true` | 原落点在液体内部时重新选点（缺陷 A） |
 | `rescueMissing` | `true` | 没有找到落点时补一个（缺陷 B） |
+| `singlePerTick` | `true` | 同一玩家同一 tick 只生成一座墓碑，避免「一死两碑」 |
 | `searchRadius` | `8` | 搜索半径，按方块计 |
 | `requireSupport` | `true` | 第一轮要求下方有实体方块，避免墓碑悬空 |
 | `diagnosticLimit` | `16` | 每次启动输出多少条诊断日志，`0` 关闭 |

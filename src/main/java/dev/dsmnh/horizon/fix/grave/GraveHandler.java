@@ -3,6 +3,7 @@ package dev.dsmnh.horizon.fix.grave;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,9 @@ public class GraveHandler {
     private static final int TIMING_LIMIT = 8;
 
     private final List<Coord> searchOrder;
+
+    /** 玩家 UUID → 上一次生成墓碑的世界时间，用于识别同 tick 重复死亡。 */
+    private final Map<UUID, Long> lastGraveTick = new HashMap<UUID, Long>();
 
     /**
      * 死亡点缓存，按 UUID 取用、用完即删。
@@ -120,6 +124,39 @@ public class GraveHandler {
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 记录死亡点失败", t);
         }
+    }
+
+    /**
+     * 同一玩家在同一 tick 内只允许生成一座墓碑。
+     *
+     * <p>同一 tick 触发两次死亡时，OpenBlocks 会排队两次放置：第一座拿到全部掉落，
+     * 第二座只剩死亡时额外追加的物品（例如大头插件补的玩家头颅），于是「一死两碑」且头颅多一颗。
+     * {@code GraveSpawnEvent} 可取消，这里把第二座拦掉；被取消后 OpenBlocks 会把该次的掉落丢回地面，
+     * 不再产生第二座墓碑。</p>
+     */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onGraveSpawnGuard(GraveSpawnEvent event) {
+        if (!FixConfig.graveSinglePerTick) return;
+
+        EntityPlayer player = event.entityPlayer;
+        if (player == null || player.worldObj == null) return;
+
+        long now = player.worldObj.getTotalWorldTime();
+        UUID id = player.getUniqueID();
+
+        Long last = lastGraveTick.get(id);
+        if (last != null && last.longValue() == now) {
+            event.setCanceled(true);
+            LOG.warn(
+                    "[HorizonFix] {} 在同一 tick 内重复死亡，已取消第二座墓碑（坐标 {}, {}, {}）",
+                    player.getCommandSenderName(),
+                    event.getX(),
+                    event.getY(),
+                    event.getZ());
+            return;
+        }
+
+        lastGraveTick.put(id, now);
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
