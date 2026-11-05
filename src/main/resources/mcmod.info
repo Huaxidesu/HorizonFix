@@ -1,0 +1,17 @@
+[
+  {
+    "modid": "horizonfix",
+    "name": "Horizon Fix",
+    "description": "服务端修复合集：OpenBlocks 墓碑落点、WR-CBE 附加数据空指针。所有修复项均可在 config/HorizonFix.cfg 中单独关闭。",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "",
+    "updateUrl": "",
+    "authorList": ["dsmnh"],
+    "credits": "OpenBlocks / GTNewHorizons, WR-CBE",
+    "logoFile": "",
+    "screenshots": [],
+    "parent": "",
+    "useDependencyInformation": true
+  }
+]

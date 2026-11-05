@@ -1,0 +1,14 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# 开发环境
+run/
+logs/
+*.iml
+.idea/
+
+# 系统
+Thumbs.db
+.DS_Store

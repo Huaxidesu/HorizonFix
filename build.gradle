@@ -1,0 +1,74 @@
+// HorizonFix · GTNH 1.7.10 服务端修复合集（墓碑落点 / 无线红石）
+// 构建环境与工作区其余 1.7.10 模组一致：GTNH 版 ForgeGradle 1.2.13 + Gradle 6.9.1 + JDK 8
+
+buildscript {
+    repositories {
+        mavenLocal()
+        maven { name = "forge"; url = "https://maven.minecraftforge.net" }
+        maven { name = "sonatype"; url = "https://oss.sonatype.org/content/repositories/snapshots/" }
+        maven { name = "central"; url = "https://repo1.maven.org/maven2/" }
+        maven { name = "jitpack"; url = "https://jitpack.io" }
+        maven { name = "plugins"; url = "https://plugins.gradle.org/m2" }
+    }
+    dependencies {
+        classpath('com.github.GTNewHorizons:ForgeGradle:1.2.13') {
+            exclude group: 'net.md-5', module: 'SpecialSource'
+            exclude group: 'org.ow2.asm', module: 'asm-debug-all'
+        }
+        classpath("org.ow2.asm:asm-commons:6.1.1")
+        classpath("net.md-5:SpecialSource:1.8.5")
+    }
+}
+
+apply plugin: 'forge'
+
+version = "1.0.0"
+group = "dev.dsmnh.horizon"
+archivesBaseName = "HorizonFix"
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+minecraft {
+    version = "1.7.10-10.13.4.1614-1.7.10"
+    runDir = "run"
+    replaceIn "HorizonFix.java"
+    replace "@VERSION@", project.version
+}
+
+repositories {
+    // Forge 1.7.10 的 dev 依赖（org.scala-lang:scala-xml_2.11 等）只有该镜像提供
+    maven { name = "Overmind forge repo mirror"; url = "https://gregtech.overminddl1.com/" }
+    maven { name = "gtnh"; url = "https://nexus.gtnewhorizons.com/repository/public/" }
+    maven { name = "gtnh-releases"; url = "https://nexus.gtnewhorizons.com/repository/releases/" }
+}
+
+dependencies {
+    // 只需要 api 包里的 GraveSpawnEvent，其余依赖不参与编译
+    compileOnly("com.github.GTNewHorizons:OpenBlocks:1.12.22-GTNH:dev") { transitive = false }
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "mcversion", project.minecraft.version
+    filteringCharset = 'UTF-8'
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.minecraft.version
+    }
+}
+
+jar {
+    manifest {
+        // 不要写 ModSide：GTNH 的 JarJar 在读取该属性时会访问 FMLLaunchHandler.side，
+        // 在 Java 17 模块系统下抛 IllegalAccessError，导致服务端在 setupHome 阶段直接退出。
+        attributes(
+            'Implementation-Title': project.archivesBaseName,
+            'Implementation-Version': project.version
+        )
+    }
+}
