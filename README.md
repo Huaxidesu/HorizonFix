@@ -8,7 +8,8 @@ GTNH 1.7.10 服务端修复合集。每个修复项都在 `config/HorizonFix.cfg
 | 墓碑落点 | OpenBlocks 墓碑被放进液体、以及放置彻底失败 | `grave` |
 | 无线红石 | WR-CBE Addons 玩家附加数据缺失导致的 NPE 崩服 | `wirelessredstone` |
 
-自动重生、0 血修复属于 Bukkit 插件侧，不在本模组范围内。
+自动重生、0 血修复属于 Bukkit 插件侧，不在本模组范围内，由
+[HorizonFixPlugin](https://github.com/Huaxidesu/HorizonFixPlugin) 提供。两个产物互相独立，可单独安装。
 
 ---
 
