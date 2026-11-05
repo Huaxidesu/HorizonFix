@@ -35,6 +35,12 @@ public class FixConfig {
     /** 诊断日志条数上限，0 表示关闭。 */
     public static int graveDiagnosticLimit = 16;
 
+    /** 被取消的死亡是否清理 OpenBlocks 背包快照。 */
+    public static boolean deathSnapshotEnabled = true;
+
+    /** 清理时是否输出日志。 */
+    public static boolean deathSnapshotLog = true;
+
     /** 无线红石附加数据补建总开关。 */
     public static boolean wrEnabled = true;
 
@@ -86,6 +92,18 @@ public class FixConfig {
                     0,
                     256,
                     "How many diagnostic log lines to emit per server start. 0 disables them.");
+
+            deathSnapshotEnabled = cfg.getBoolean(
+                    "enabled",
+                    "deathSnapshot",
+                    deathSnapshotEnabled,
+                    "Remove the inventory snapshots OpenBlocks writes for deaths that were later cancelled "
+                            + "(e.g. Witchery vampires). Restoring such a snapshot would duplicate items.");
+            deathSnapshotLog = cfg.getBoolean(
+                    "logCleanup",
+                    "deathSnapshot",
+                    deathSnapshotLog,
+                    "Log every cleanup of cancelled-death snapshots.");
 
             wrEnabled = cfg.getBoolean(
                     "enabled",

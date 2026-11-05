@@ -14,6 +14,7 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.eventhandler.EventBus;
 import dev.dsmnh.horizon.fix.grave.GraveHandler;
+import dev.dsmnh.horizon.fix.snapshot.DeathSnapshotGuard;
 import dev.dsmnh.horizon.fix.wr.WrNpeHandler;
 
 /**
@@ -45,6 +46,7 @@ public class HorizonFix {
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         registerGrave();
+        registerDeathSnapshot();
         registerWirelessRedstone();
     }
 
@@ -63,6 +65,19 @@ public class HorizonFix {
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 墓碑修正注册失败，该功能不生效", t);
         }
+    }
+
+    private void registerDeathSnapshot() {
+        if (!FixConfig.deathSnapshotEnabled) {
+            LOG.info("[HorizonFix] 被取消死亡的快照清理已关闭");
+            return;
+        }
+        if (!Loader.isModLoaded("OpenBlocks")) {
+            LOG.info("[HorizonFix] 未检测到 OpenBlocks，快照清理不注册");
+            return;
+        }
+        MinecraftForge.EVENT_BUS.register(new DeathSnapshotGuard());
+        LOG.info("[HorizonFix] 被取消死亡的快照清理已注册");
     }
 
     private void registerWirelessRedstone() {

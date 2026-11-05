@@ -7,6 +7,7 @@ GTNH 1.7.10 服务端修复合集。每个修复项都在 `config/HorizonFix.cfg
 |---|---|---|
 | 墓碑落点 | OpenBlocks 墓碑被放进液体、以及放置彻底失败 | `grave` |
 | 无线红石 | WR-CBE Addons 玩家附加数据缺失导致的 NPE 崩服 | `wirelessredstone` |
+| 死亡快照 | 死亡被取消后 OpenBlocks 仍会写背包快照，恢复即复制物品 | `deathSnapshot` |
 
 自动重生、0 血修复属于 Bukkit 插件侧，不在本模组范围内，由
 [HorizonFixPlugin](https://github.com/Huaxidesu/HorizonFixPlugin) 提供。两个产物互相独立，可单独安装。
@@ -74,7 +75,22 @@ tryPlaceGrave(world, evt.getX(), evt.getY(), evt.getZ(), ...);       // 用事�
 
 ---
 
-## 三、配置
+## 三、被取消死亡的快照（`deathSnapshot`）
+
+OpenBlocks 的 `PlayerInventoryStore.onPlayerDeath` 在 `HIGH` 优先级无条件落盘，不检查 `isCanceled()`；
+Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是每次「打不死」都会多出一份
+`-death-N.dat`，而真正掉物品的 `PlayerDropsEvent` 并未触发——既没有死亡提示，也不会立墓碑。
+
+这些快照本身无害，但 `/ob_inventory restore` 不校验玩家当前是否已有这些物品，
+恢复任何一份都等于凭空复制一整包东西。
+
+本模块在 `HIGHEST`（早于 OpenBlocks）记录快照目录的文件列表，在 `LOWEST`（晚于所有取消动作，
+`receiveCanceled = true`）检查事件是否被取消；被取消则删除本次事件期间新增的该玩家 death 快照。
+只删本次新增的文件，不碰历史快照。
+
+---
+
+## 四、配置
 
 文件：`config/HorizonFix.cfg`（首次启动自动生成，注释为英文以避免 GBK/UTF-8 编码问题）。
 
@@ -91,6 +107,13 @@ tryPlaceGrave(world, evt.getX(), evt.getY(), evt.getZ(), ...);       // 用事�
 | `requireSupport` | `true` | 第一轮要求下方有实体方块，避免墓碑悬空 |
 | `diagnosticLimit` | `16` | 每次启动输出多少条诊断日志，`0` 关闭 |
 
+### `deathSnapshot`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 被取消死亡的快照清理总开关 |
+| `logCleanup` | `true` | 每次清理输出一条日志 |
+
 ### `wirelessredstone`
 
 | 键 | 默认 | 说明 |
@@ -102,7 +125,7 @@ tryPlaceGrave(world, evt.getX(), evt.getY(), evt.getZ(), ...);       // 用事�
 
 ---
 
-## 四、诊断日志
+## 五、诊断日志
 
 墓碑失败时（受 `grave.diagnosticLimit` 限制）：
 
@@ -127,7 +150,7 @@ tryPlaceGrave(world, evt.getX(), evt.getY(), evt.getZ(), ...);       // 用事�
 
 ---
 
-## 五、关于「重生与放置撞在同一 tick」
+## 六、关于「重生与放置撞在同一 tick」
 
 交接资料提出：自动重生任务与墓碑放置排在同一 tick，顺序不稳，重生先执行时区块失去加载来源。
 按 1.7.10 的实际调用链，**这条不成立**：
@@ -149,7 +172,7 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ---
 
-## 六、安装与回滚
+## 七、安装与回滚
 
 1. 构建产物 `build/libs/HorizonFix-1.0.0.jar`；
 2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.0.0.jar`；
@@ -160,7 +183,7 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ---
 
-## 七、构建
+## 八、构建
 
 ```bash
 export JAVA_HOME=<JDK 8>
