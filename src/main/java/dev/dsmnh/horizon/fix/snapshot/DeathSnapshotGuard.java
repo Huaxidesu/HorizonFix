@@ -9,7 +9,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.util.DamageSource;
+import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
@@ -47,6 +50,9 @@ public class DeathSnapshotGuard {
     /** 玩家 UUID → 死亡事件开始时的目录文件集合。 */
     private final Map<UUID, Set<String>> before = new HashMap<UUID, Set<String>>();
 
+    /** 累计被取消的死亡次数，仅用于日志编号。 */
+    private int canceled;
+
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onDeathStart(LivingDeathEvent event) {
         EntityPlayer player = playerOf(event);
@@ -72,12 +78,12 @@ public class DeathSnapshotGuard {
         // 真死保留快照，只有被取消的死亡才需要清理
         if (!event.isCanceled()) return;
 
+        int removed = 0;
         try {
             File folder = dumpFolder(player.worldObj);
             if (folder == null) return;
 
             String owner = PREFIX + safeName(player) + "-";
-            int removed = 0;
 
             for (String name : listNames(folder)) {
                 if (previous.contains(name)) continue;
@@ -100,6 +106,43 @@ public class DeathSnapshotGuard {
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 清理被取消死亡的快照时出错", t);
         }
+
+        if (FixConfig.deathSnapshotLogCanceled) {
+            logCanceled(event, player, removed);
+        }
+    }
+
+    /**
+     * 输出一次被取消死亡的伤害源现场。
+     *
+     * <p>1.7.10 的 {@link DamageSource} 不携带伤害数值（数值只在 {@code attackEntityFrom} 的参数里），
+     * 因此只能记录来源类型、攻击者、直接来源与当时血量。</p>
+     */
+    private void logCanceled(LivingDeathEvent event, EntityPlayer player, int removed) {
+        canceled++;
+
+        DamageSource source = event.source;
+        String type = source == null ? "?" : source.damageType;
+        String attacker = source == null ? "-" : describe(source.getEntity());
+        String direct = source == null ? "-" : describe(source.getSourceOfDamage());
+
+        LOG.info(
+                "[HorizonFix] 死亡被取消 #{} 玩家={} src={} attacker={} direct={} health={} pos=({},{},{}) dim={} 清理={}",
+                canceled,
+                player.getCommandSenderName(),
+                type,
+                attacker,
+                direct,
+                player.getHealth(),
+                MathHelper.floor_double(player.posX),
+                MathHelper.floor_double(player.posY),
+                MathHelper.floor_double(player.posZ),
+                player.worldObj.provider.dimensionId,
+                removed);
+    }
+
+    private static String describe(Entity entity) {
+        return entity == null ? "-" : entity.getClass().getSimpleName();
     }
 
     private static EntityPlayer playerOf(LivingDeathEvent event) {

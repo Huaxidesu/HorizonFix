@@ -41,6 +41,9 @@ public class FixConfig {
     /** 清理时是否输出日志。 */
     public static boolean deathSnapshotLog = true;
 
+    /** 死亡被取消时是否输出伤害源、攻击者与当前血量。 */
+    public static boolean deathSnapshotLogCanceled = true;
+
     /** 无线红石附加数据补建总开关。 */
     public static boolean wrEnabled = true;
 
@@ -104,6 +107,13 @@ public class FixConfig {
                     "deathSnapshot",
                     deathSnapshotLog,
                     "Log every cleanup of cancelled-death snapshots.");
+
+            deathSnapshotLogCanceled = cfg.getBoolean(
+                    "logCanceled",
+                    "deathSnapshot",
+                    deathSnapshotLogCanceled,
+                    "Log damage type, attacker and health whenever a death is cancelled. "
+                            + "Used to diagnose repeated cancelled deaths.");
 
             wrEnabled = cfg.getBoolean(
                     "enabled",

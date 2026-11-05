@@ -113,6 +113,7 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 |---|---|---|
 | `enabled` | `true` | 被取消死亡的快照清理总开关 |
 | `logCleanup` | `true` | 每次清理输出一条日志 |
+| `logCanceled` | `true` | 死亡被取消时输出伤害源、攻击者与当前血量 |
 
 ### `wirelessredstone`
 
@@ -140,6 +141,15 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 - `canMineBlock` 小于 `total` → 失败在权限或保护类判定；
 - `delta=1` → 放置回调与死亡同 tick（世界时间在实体 tick 之后、END 事件之前自增一次），
   自动重生任务不可能先于它执行；`delta>=2` 才表示放置被推到了下一 tick 或更晚。
+
+死亡被取消时（受 `logCanceled` 控制）：
+
+```text
+[HorizonFix] 死亡被取消 #3 玩家=xxx src=inWall attacker=- direct=- health=0.0 pos=(-52857,15,-52468) dim=7 清理=1
+```
+
+`src` 是 `DamageSource.damageType`，`attacker` 与 `direct` 分别是伤害来源实体与直接来源实体。
+1.7.10 的 `DamageSource` 不携带伤害数值，因此日志里没有 amount。
 
 无线红石补建（受 `logDimensionRepair` / `logLoginRepair` 控制）：
 
