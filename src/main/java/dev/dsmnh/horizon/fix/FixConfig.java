@@ -35,6 +35,18 @@ public class FixConfig {
     /** 诊断日志条数上限，0 表示关闭。 */
     public static int graveDiagnosticLimit = 16;
 
+    /** 墓碑位置记录与提醒总开关。 */
+    public static boolean graveTrackerEnabled = true;
+
+    /** 墓碑放置时给玩家发一条带坐标的提示。 */
+    public static boolean graveTrackerNotifyPlace = true;
+
+    /** 玩家登录时提醒未取走的墓碑。 */
+    public static boolean graveTrackerNotifyLogin = true;
+
+    /** 登录时最多直接列出几座墓碑，超出则只给数量提示。 */
+    public static int graveTrackerLoginLimit = 3;
+
     /** 被取消的死亡是否清理 OpenBlocks 背包快照。 */
     public static boolean deathSnapshotEnabled = true;
 
@@ -95,6 +107,29 @@ public class FixConfig {
                     0,
                     256,
                     "How many diagnostic log lines to emit per server start. 0 disables them.");
+
+            graveTrackerEnabled = cfg.getBoolean(
+                    "enabled",
+                    "graveTracker",
+                    graveTrackerEnabled,
+                    "Remember grave positions and remind players, so graves are not left behind unnoticed.");
+            graveTrackerNotifyPlace = cfg.getBoolean(
+                    "notifyOnPlace",
+                    "graveTracker",
+                    graveTrackerNotifyPlace,
+                    "Send the grave coordinates to the player in chat right after placement.");
+            graveTrackerNotifyLogin = cfg.getBoolean(
+                    "notifyOnLogin",
+                    "graveTracker",
+                    graveTrackerNotifyLogin,
+                    "Remind the player of unclaimed graves when they log in.");
+            graveTrackerLoginLimit = cfg.getInt(
+                    "loginLimit",
+                    "graveTracker",
+                    graveTrackerLoginLimit,
+                    1,
+                    16,
+                    "How many graves to list on login. Above this only the count is shown.");
 
             deathSnapshotEnabled = cfg.getBoolean(
                     "enabled",

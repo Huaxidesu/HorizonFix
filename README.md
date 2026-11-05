@@ -6,6 +6,7 @@ GTNH 1.7.10 服务端修复合集。每个修复项都在 `config/HorizonFix.cfg
 | 模块 | 修复内容 | 配置节 |
 |---|---|---|
 | 墓碑落点 | OpenBlocks 墓碑被放进液体、以及放置彻底失败 | `grave` |
+| 墓碑提醒 | 墓碑建好后玩家不知道在哪，物品长期留在世界里 | `graveTracker` |
 | 无线红石 | WR-CBE Addons 玩家附加数据缺失导致的 NPE 崩服 | `wirelessredstone` |
 | 死亡快照 | 死亡被取消后 OpenBlocks 仍会写背包快照，恢复即复制物品 | `deathSnapshot` |
 
@@ -75,7 +76,31 @@ tryPlaceGrave(world, evt.getX(), evt.getY(), evt.getZ(), ...);       // 用事�
 
 ---
 
-## 三、被取消死亡的快照（`deathSnapshot`）
+## 三、墓碑位置提醒（`graveTracker`）
+
+OpenBlocks 只把死亡原因和天数写进墓碑文字，**不给玩家任何坐标**。玩家重生点往往离死亡点很远，
+于是出现「墓碑一直在、玩家以为东西丢了」——实际案例里 704 件物品在一座没人取走的墓碑里躺了几个小时。
+
+本模块在墓碑放置后记录位置，并在三个时机告知玩家：
+
+1. **放置时**：聊天栏提示坐标与维度；
+2. **登录时**：若有未取走的墓碑，再提醒一次（超过 `loginLimit` 只给数量）；
+3. **`/graves`**：随时列出全部未取走的墓碑，含「多久以前」。
+
+```
+[墓碑] 你的物品放在 主世界 (5232, 87, 11842)，取走前不会消失
+[墓碑] 未取走的墓碑：主世界 (5232, 87, 11842)（3 小时前）
+```
+
+**「是否已取走」只在区块已载入时判定**：未载入的区块不做任何载入动作，按未取走列出——
+玩家到现场自然能确认，代价是不会为了检查而载入远处区块。
+
+记录持久化在 `config/HorizonFix-graves.txt`，每行 `uuid|维度|x|y|z|时间戳`，全局上限 256 条、
+单玩家 16 条。该文件可随时删除，删除后只是丢失历史记录。
+
+---
+
+## 四、被取消死亡的快照（`deathSnapshot`）
 
 OpenBlocks 的 `PlayerInventoryStore.onPlayerDeath` 在 `HIGH` 优先级无条件落盘，不检查 `isCanceled()`；
 Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是每次「打不死」都会多出一份
@@ -90,7 +115,7 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 ---
 
-## 四、配置
+## 五、配置
 
 文件：`config/HorizonFix.cfg`（首次启动自动生成，注释为英文以避免 GBK/UTF-8 编码问题）。
 
@@ -106,6 +131,15 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 | `searchRadius` | `8` | 搜索半径，按方块计 |
 | `requireSupport` | `true` | 第一轮要求下方有实体方块，避免墓碑悬空 |
 | `diagnosticLimit` | `16` | 每次启动输出多少条诊断日志，`0` 关闭 |
+
+### `graveTracker`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 墓碑位置记录与提醒总开关，同时控制 `/graves` 是否注册 |
+| `notifyOnPlace` | `true` | 放置时把坐标发到聊天栏 |
+| `notifyOnLogin` | `true` | 登录时提醒未取走的墓碑 |
+| `loginLimit` | `3` | 登录时最多直接列出几座，超出只给数量 |
 
 ### `deathSnapshot`
 
@@ -126,7 +160,7 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 ---
 
-## 五、诊断日志
+## 六、诊断日志
 
 墓碑失败时（受 `grave.diagnosticLimit` 限制）：
 
@@ -160,7 +194,7 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 ---
 
-## 六、关于「重生与放置撞在同一 tick」
+## 七、关于「重生与放置撞在同一 tick」
 
 交接资料提出：自动重生任务与墓碑放置排在同一 tick，顺序不稳，重生先执行时区块失去加载来源。
 按 1.7.10 的实际调用链，**这条不成立**：
@@ -182,7 +216,7 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ---
 
-## 七、安装与回滚
+## 八、安装与回滚
 
 1. 构建产物 `build/libs/HorizonFix-1.0.0.jar`；
 2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.0.0.jar`；
@@ -193,7 +227,7 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ---
 
-## 八、构建
+## 九、构建
 
 ```bash
 export JAVA_HOME=<JDK 8>

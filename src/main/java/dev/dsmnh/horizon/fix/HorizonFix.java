@@ -12,8 +12,11 @@ import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.eventhandler.EventBus;
+import dev.dsmnh.horizon.fix.grave.CommandGraves;
 import dev.dsmnh.horizon.fix.grave.GraveHandler;
+import dev.dsmnh.horizon.fix.grave.GraveTracker;
 import dev.dsmnh.horizon.fix.snapshot.DeathSnapshotGuard;
 import dev.dsmnh.horizon.fix.wr.WrNpeHandler;
 
@@ -41,11 +44,13 @@ public class HorizonFix {
     public void preInit(FMLPreInitializationEvent event) {
         File file = new File(event.getModConfigurationDirectory(), "HorizonFix.cfg");
         FixConfig.load(file);
+        GraveTracker.get().init(event.getModConfigurationDirectory());
     }
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         registerGrave();
+        registerGraveTracker();
         registerDeathSnapshot();
         registerWirelessRedstone();
     }
@@ -64,6 +69,31 @@ public class HorizonFix {
             LOG.info("[HorizonFix] 墓碑修正已注册");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 墓碑修正注册失败，该功能不生效", t);
+        }
+    }
+
+    private void registerGraveTracker() {
+        if (!FixConfig.graveTrackerEnabled) {
+            LOG.info("[HorizonFix] 墓碑位置提醒已关闭");
+            return;
+        }
+        if (!Loader.isModLoaded("OpenBlocks")) {
+            LOG.info("[HorizonFix] 未检测到 OpenBlocks，墓碑位置提醒不注册");
+            return;
+        }
+        GraveTracker tracker = GraveTracker.get();
+        MinecraftForge.EVENT_BUS.register(tracker);
+        FMLCommonHandler.instance().bus().register(tracker);
+        LOG.info("[HorizonFix] 墓碑位置提醒已注册");
+    }
+
+    @Mod.EventHandler
+    public void serverStarting(FMLServerStartingEvent event) {
+        if (!FixConfig.graveTrackerEnabled) return;
+        try {
+            event.registerServerCommand(new CommandGraves());
+        } catch (Throwable t) {
+            LOG.warn("[HorizonFix] /graves 命令注册失败，可能是命令名冲突", t);
         }
     }
 
