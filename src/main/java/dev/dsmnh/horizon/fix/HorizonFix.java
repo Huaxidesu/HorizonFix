@@ -15,6 +15,7 @@ import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.eventhandler.EventBus;
 import dev.dsmnh.horizon.fix.grave.CommandGraves;
+import dev.dsmnh.horizon.fix.grave.CommandPermission;
 import dev.dsmnh.horizon.fix.grave.GraveHandler;
 import dev.dsmnh.horizon.fix.grave.GraveTracker;
 import dev.dsmnh.horizon.fix.snapshot.DeathSnapshotGuard;
@@ -92,6 +93,10 @@ public class HorizonFix {
         if (!FixConfig.graveTrackerEnabled) return;
         try {
             event.registerServerCommand(new CommandGraves());
+            CommandPermission.allowEveryone("bukkit.command.graves");
+            CommandPermission.resetAttempts();
+            CommandPermission.ensureNoPermission("graves");
+            LOG.info("[HorizonFix] 命令 /graves 已注册（权限节点 bukkit.command.graves）");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] /graves 命令注册失败，可能是命令名冲突", t);
         }

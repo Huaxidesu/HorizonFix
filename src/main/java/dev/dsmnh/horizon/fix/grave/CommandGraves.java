@@ -30,6 +30,18 @@ public class CommandGraves extends CommandBase {
         return 0;
     }
 
+    /**
+     * 放行所有发送者。
+     *
+     * <p>命令只列出玩家自己的墓碑，不需要权限限制。混合端还会按 {@code bukkit.command.graves}
+     * 再校验一次，那条由 {@link CommandPermission} 注册为默认允许。
+     * 写法与 ServerUtilities 的 {@code CmdBase.Level.ALL} 一致：直接重写本方法返回 true。</p>
+     */
+    @Override
+    public boolean canCommandSenderUseCommand(ICommandSender sender) {
+        return true;
+    }
+
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         if (!(sender instanceof EntityPlayer)) {
