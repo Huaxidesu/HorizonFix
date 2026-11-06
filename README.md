@@ -1,6 +1,6 @@
 # HorizonFix
 
-GTNH 1.7.10 服务端修复合集。事件类修复各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器不注册，
+GTNH 1.7.10 服务端修复合集。**1.2.0 的重点修复是 ExtraUtilities 分割徽章在混合服务端上无法激活的问题**，详见下方「重点修复」一节。事件类修复各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器不注册，
 运行期开销为零；删除 jar 即完全回滚。第三方模组适配以条件加载的 mixin 实现，只注入 ExtraUtilities、
 Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的类；目标模组缺失时对应 mixin 不加载。
 
@@ -11,12 +11,45 @@ Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的�
 | 无线红石 | WR-CBE Addons 玩家附加数据缺失导致的 NPE 崩服 | `wirelessredstone` |
 | 死亡快照 | 死亡被取消后 OpenBlocks 仍会写背包快照，恢复即复制物品 | `deathSnapshot` |
 | 级联生成诊断 | 记录区块填充期间触发的相邻区块载入 | `worldgen` |
-| 第三方适配 | ExtraUtilities 四处、Botania 一处、MrTJPCore 一处的兼容性与防崩修复 | 按目标模组存在与否加载 |
+| **分割徽章激活** | **重点**：修复 ExtraUtilities 分割徽章在混合服务端无法激活、激活后右键附魔台或信标无响应 | 按目标模组加载 |
+| 其他第三方适配 | ExtraUtilities 围城信标判定与垃圾桶读档、Botania 亮度查询、MrTJPCore 活跃区块集合 | 按目标模组加载 |
 
 mixin 运行期依赖 Mixin 库，GTNH 2.9.0 自带的 UniMixins 已提供，无需额外安装。
 
 自动重生、0 血修复属于 Bukkit 插件侧，不在本模组范围内，由
 [HorizonFixPlugin](https://github.com/Huaxidesu/HorizonFixPlugin) 提供。两个产物互相独立，可单独安装。
+
+---
+
+## 重点修复：ExtraUtilities 分割徽章激活
+
+### 现象
+
+在 Crucible / Thermos / Cauldron 这类混合服务端上，ExtraUtilities 的分割徽章（`Division Sigil`，游戏内亦称除法印记）激活仪式无法完成：按配方摆好祭坛后仪式不触发，徽章始终处于未激活状态；已激活的徽章右键附魔台或信标也没有响应。
+
+### 原因
+
+ExtraUtilities 用方块对象的引用相等比较来判定祭坛：
+
+```java
+world.getBlock(x, y, z) == Blocks.enchanting_table
+```
+
+混合服务端与整合包会替换或包装原版方块，此时取到的是 `BlockEnchantmentTable` 的子类实例，与 `Blocks.enchanting_table` 不是同一对象，比较恒为假，激活仪式与徽章右键判定随之全部失效。围城事件对信标 TileEntity 使用 `Class.equals` 严格比较，同样会因子类化而失效。
+
+### 修复
+
+- `MixinExtraUtilsActivationRitual`：把仪式判定取到的附魔台归一到原版方块单例。
+- `MixinExtraUtilsDivisionSigil`：把徽章右键取到的附魔台与信标归一到原版方块单例。
+- `MixinExtraUtilsSiege`：把信标 TileEntity 的类相等判定改为可赋值判定，允许子类。
+
+三处注入只作用于 ExtraUtilities 自身的类，不改写原版类与混合服务端补丁过的类；目标模组缺失时不加载对应 mixin。
+
+### 验收
+
+1. 在混合服务端按 ExtraUtilities 的流程执行分割徽章激活仪式，徽章应进入激活状态。
+2. 已激活的徽章右键附魔台与信标应正常响应。
+3. 启动日志出现 `[HorizonFix] 适配 mixin 已启用 6 项`，且无 `InvalidInjectionException`。
 
 ---
 
