@@ -6,6 +6,7 @@ out/
 # 开发环境
 run/
 logs/
+doc/
 *.iml
 .idea/
 
