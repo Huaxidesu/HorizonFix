@@ -1,7 +1,8 @@
 # HorizonFix
 
-GTNH 1.7.10 服务端修复合集。每个修复项都在 `config/HorizonFix.cfg` 里有独立开关，关闭后对应监听器不注册，
-运行期开销为零；所有修复都不修改目标模组的字节码，删除 jar 即完全回滚。
+GTNH 1.7.10 服务端修复合集。事件类修复各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器不注册，
+运行期开销为零；删除 jar 即完全回滚。第三方模组适配以条件加载的 mixin 实现，只注入 ExtraUtilities、
+Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的类；目标模组缺失时对应 mixin 不加载。
 
 | 模块 | 修复内容 | 配置节 |
 |---|---|---|
@@ -9,6 +10,10 @@ GTNH 1.7.10 服务端修复合集。每个修复项都在 `config/HorizonFix.cfg
 | 墓碑提醒 | 墓碑建好后玩家不知道在哪，物品长期留在世界里 | `graveTracker` |
 | 无线红石 | WR-CBE Addons 玩家附加数据缺失导致的 NPE 崩服 | `wirelessredstone` |
 | 死亡快照 | 死亡被取消后 OpenBlocks 仍会写背包快照，恢复即复制物品 | `deathSnapshot` |
+| 级联生成诊断 | 记录区块填充期间触发的相邻区块载入 | `worldgen` |
+| 第三方适配 | ExtraUtilities 四处、Botania 一处、MrTJPCore 一处的兼容性与防崩修复 | 按目标模组存在与否加载 |
+
+mixin 运行期依赖 Mixin 库，GTNH 2.9.0 自带的 UniMixins 已提供，无需额外安装。
 
 自动重生、0 血修复属于 Bukkit 插件侧，不在本模组范围内，由
 [HorizonFixPlugin](https://github.com/Huaxidesu/HorizonFixPlugin) 提供。两个产物互相独立，可单独安装。
@@ -167,6 +172,13 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 | `logLoginRepair` | `false` | 登录路径补建打 INFO。每次登录都会命中，默认只打 DEBUG |
 | `logDimensionRepair` | `true` | 跨维度路径补建打 INFO。这是真正有诊断价值的一类 |
 
+### `worldgen`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 记录区块填充期间触发的相邻区块载入 |
+| `logLimit` | `16` | 单次启动的日志条数上限，`0` 关闭 |
+
 ---
 
 ## 六、诊断日志
@@ -201,6 +213,14 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 [HorizonFix] [login] 玩家 xxx 补建无线红石附加数据（第 12 次）
 ```
 
+级联世界生成（受 `worldgen.logLimit` 控制）：
+
+```text
+[HorizonFix] 级联世界生成 dim=0 来源区块=(12,-5) 触发载入=(13,-5)
+```
+
+`来源区块` 是正在执行填充的区块，`触发载入` 是在此期间被载入的另一区块。该日志只用于定位责任模组，不改变生成行为。
+
 ---
 
 ## 七、关于「重生与放置撞在同一 tick」
@@ -227,12 +247,14 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ## 八、安装与回滚
 
-1. 构建产物 `build/libs/HorizonFix-1.0.0.jar`；
-2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.0.0.jar`；
-3. **客户端不需要安装**：`acceptableRemoteVersions = "*"` 允许缺少该模组的客户端进入；
+1. 构建产物 `build/libs/HorizonFix-1.2.0.jar`；
+2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.2.0.jar`；
+3. **客户端不需要安装**：`acceptableRemoteVersions = "*"` 允许缺少该模组的客户端进入，六处第三方适配均作用于服务端代码路径；
 4. 重启服务端。
 
-回滚：删除 jar 并重启即可，不残留配置或数据（`config/HorizonFix.cfg` 可一并删除）。
+运行环境需具备 Mixin 库，GTNH 2.9.0 自带的 UniMixins 已满足该条件。
+
+回滚：删除 jar 并重启即可。事件类修复不写入存档，第三方 mixin 随 jar 一起移除；`config/HorizonFix.cfg` 可一并删除。
 
 ---
 
@@ -243,8 +265,10 @@ export JAVA_HOME=<JDK 8>
 ./gradlew.in build
 ```
 
-依赖 GTNH 的 ForgeGradle 1.2.13 与 Maven 仓库；OpenBlocks 以 `compileOnly` 引入，
-只用到 `openblocks.api.GraveSpawnEvent`，不会打进产物。无线红石部分不依赖任何编译期依赖。
+依赖 GTNH 的 ForgeGradle 1.2.13 与 Maven 仓库；OpenBlocks、Mixin、SpongeMixins 均以 `compileOnly` 引入，
+不打进产物。OpenBlocks 只用到 `openblocks.api.GraveSpawnEvent`；mixin 的目标类以字符串指定，
+因此不需要 ExtraUtilities、Botania、MrTJPCore 的编译期 jar。jar 清单包含 `TweakClass` 与 `MixinConfigs`，
+由运行期的 Mixin 库读取。
 
 jar 清单不要写 `ModSide` 属性：GTNH 的 JarJar 读取该属性时会访问 `FMLLaunchHandler.side`，
 在 Java 17 模块系统下抛 `IllegalAccessError`，服务端在 `setupHome` 阶段直接退出。

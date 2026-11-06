@@ -19,6 +19,7 @@ import dev.dsmnh.horizon.fix.grave.CommandPermission;
 import dev.dsmnh.horizon.fix.grave.GraveHandler;
 import dev.dsmnh.horizon.fix.grave.GraveTracker;
 import dev.dsmnh.horizon.fix.snapshot.DeathSnapshotGuard;
+import dev.dsmnh.horizon.fix.world.CascadeWorldgenDiagnostic;
 import dev.dsmnh.horizon.fix.wr.WrNpeHandler;
 
 /**
@@ -54,6 +55,7 @@ public class HorizonFix {
         registerGraveTracker();
         registerDeathSnapshot();
         registerWirelessRedstone();
+        registerWorldgenDiagnostic();
     }
 
     private void registerGrave() {
@@ -113,6 +115,15 @@ public class HorizonFix {
         }
         MinecraftForge.EVENT_BUS.register(new DeathSnapshotGuard());
         LOG.info("[HorizonFix] 被取消死亡的快照清理已注册");
+    }
+
+    private void registerWorldgenDiagnostic() {
+        if (!FixConfig.worldgenDiagnosticEnabled || FixConfig.worldgenDiagnosticLimit <= 0) {
+            LOG.info("[HorizonFix] 级联世界生成诊断已关闭");
+            return;
+        }
+        MinecraftForge.EVENT_BUS.register(new CascadeWorldgenDiagnostic(FixConfig.worldgenDiagnosticLimit));
+        LOG.info("[HorizonFix] 级联世界生成诊断已注册");
     }
 
     private void registerWirelessRedstone() {

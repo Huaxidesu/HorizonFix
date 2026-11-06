@@ -22,7 +22,7 @@ buildscript {
 
 apply plugin: 'forge'
 
-version = "1.1.0"
+version = "1.2.0"
 group = "dev.dsmnh.horizon"
 archivesBaseName = "HorizonFix"
 
@@ -45,11 +45,22 @@ repositories {
     maven { name = "Overmind forge repo mirror"; url = "https://gregtech.overminddl1.com/" }
     maven { name = "gtnh"; url = "https://nexus.gtnewhorizons.com/repository/public/" }
     maven { name = "gtnh-releases"; url = "https://nexus.gtnewhorizons.com/repository/releases/" }
+    // Mixin 与 SpongeMixins 只参与编译，运行期由 UniMixins 提供
+    maven { name = "sponge"; url = "https://repo.spongepowered.org/repository/maven-public" }
+    maven { name = "jitpack"; url = "https://jitpack.io" }
 }
 
 dependencies {
     // 只需要 api 包里的 GraveSpawnEvent，其余依赖不参与编译
     compileOnly("com.github.GTNewHorizons:OpenBlocks:1.12.22-GTNH:dev") { transitive = false }
+    compileOnly("org.spongepowered:mixin:0.7.11-SNAPSHOT") {
+        exclude module: "launchwrapper"
+        exclude module: "guava"
+        exclude module: "gson"
+        exclude module: "commons-io"
+        exclude module: "log4j-core"
+    }
+    compileOnly("com.github.GTNewHorizons:SpongeMixins:1.3.3:dev")
 }
 
 processResources {
@@ -68,7 +79,11 @@ jar {
         // 在 Java 17 模块系统下抛 IllegalAccessError，导致服务端在 setupHome 阶段直接退出。
         attributes(
             'Implementation-Title': project.archivesBaseName,
-            'Implementation-Version': project.version
+            'Implementation-Version': project.version,
+            'FMLCorePluginContainsFMLMod': 'true',
+            'TweakClass': 'org.spongepowered.asm.launch.MixinTweaker',
+            'MixinConfigs': 'mixins.horizonfix.json',
+            'ForceLoadAsMod': 'true'
         )
     }
 }

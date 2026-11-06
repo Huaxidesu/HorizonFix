@@ -71,6 +71,12 @@ public class FixConfig {
     /** 跨维度路径的补建是否打 INFO 日志（这是真正有诊断价值的一类）。 */
     public static boolean wrLogDimensionRepair = true;
 
+    /** 是否记录区块填充期间触发的相邻区块载入。 */
+    public static boolean worldgenDiagnosticEnabled = true;
+
+    /** 单次启动最多输出多少条级联世界生成日志。 */
+    public static int worldgenDiagnosticLimit = 16;
+
     public static void load(File file) {
         Configuration cfg = new Configuration(file);
         try {
@@ -180,6 +186,19 @@ public class FixConfig {
                     "wirelessredstone",
                     wrLogDimensionRepair,
                     "Log dimension-change repairs at INFO. These are the ones that used to crash the server.");
+
+            worldgenDiagnosticEnabled = cfg.getBoolean(
+                    "enabled",
+                    "worldgen",
+                    worldgenDiagnosticEnabled,
+                    "Log chunk loads triggered while another chunk is being populated.");
+            worldgenDiagnosticLimit = cfg.getInt(
+                    "logLimit",
+                    "worldgen",
+                    worldgenDiagnosticLimit,
+                    0,
+                    256,
+                    "Maximum number of cascading worldgen log lines per server start. 0 disables them.");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 读取配置失败，全部使用默认值", t);
         } finally {

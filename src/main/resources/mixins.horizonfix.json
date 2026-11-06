@@ -1,0 +1,9 @@
+{
+  "required": true,
+  "minVersion": "0.7.11",
+  "package": "dev.dsmnh.horizon.fix.mixin",
+  "plugin": "dev.dsmnh.horizon.fix.mixin.MixinPlugin",
+  "target": "@env(DEFAULT)",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": []
+}
