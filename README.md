@@ -1,6 +1,6 @@
 # HorizonFix
 
-GTNH 1.7.10 服务端修复合集。**1.2.0 的重点修复是 ExtraUtilities 分割徽章在混合服务端上无法激活的问题**，详见下方「重点修复」一节。事件类修复各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器不注册，
+GTNH 1.7.10 服务端修复合集。**1.3.0 新增墓碑未生成时的自动返还**：放置彻底失败时不再只提示管理员恢复，而是把物品直接放回玩家背包。**1.2.0 的重点修复是 ExtraUtilities 分割徽章在混合服务端上无法激活的问题**，详见下方「重点修复」一节。事件类修复各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器不注册，
 运行期开销为零；删除 jar 即完全回滚。第三方模组适配以条件加载的 mixin 实现，只注入 ExtraUtilities、
 Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的类；目标模组缺失时对应 mixin 不加载。
 
@@ -8,6 +8,7 @@ Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的�
 |---|---|---|
 | 墓碑落点 | OpenBlocks 墓碑被放进液体、以及放置彻底失败 | `grave` |
 | 墓碑提醒 | 墓碑建好后玩家不知道在哪，物品长期留在世界里 | `graveTracker` |
+| 墓碑自动返还 | 墓碑确实没有生成时把物品放回玩家背包，无需管理员介入 | `graveRecovery` |
 | 无线红石 | WR-CBE Addons 玩家附加数据缺失导致的 NPE 崩服 | `wirelessredstone` |
 | 死亡快照 | 死亡被取消后 OpenBlocks 仍会写背包快照，恢复即复制物品 | `deathSnapshot` |
 | 级联生成诊断 | 记录区块填充期间触发的相邻区块载入 | `worldgen` |
@@ -146,7 +147,62 @@ OpenBlocks 只把死亡原因和天数写进墓碑文字，**不给玩家任何�
 
 ---
 
-## 四、被取消死亡的快照（`deathSnapshot`）
+## 四、墓碑未生成时自动返还（`graveRecovery`）
+
+`GraveSpawnEvent` 只是「准备放置」。OpenBlocks 在事件之后才写方块，`tryPlaceGrave` 失败时执行的是：
+
+```java
+for (EntityItem drop : loot) world.spawnEntityInWorld(drop);
+```
+
+即把本该进墓碑的物品丢回死亡位置。死亡点位于岩浆内部时这批物品会直接烧毁，其余情况也需要玩家
+回到原地逐个捡起。1.2.x 及以前的做法是放置后 2 tick 校验一次方块，不是墓碑就提示玩家联系管理员
+用 `/ob_inventory restore` 恢复，仍需人工介入。
+
+本模块改为自动完成：
+
+1. 在 `GraveSpawnEvent`（`LOWEST`，晚于落点修正）记下本次墓碑应装入的物品，并保留对应的
+   `EntityItem` 引用；
+2. 2 tick 后检查该坐标：方块是 `BlockGrave` 且 TileEntity 是 `TileEntityGrave` 才算成功；
+3. 判定失败时依次执行：
+   - 移除 OpenBlocks 丢到地面的同一批掉落物（`graveRecovery.removeDroppedItems`）；
+   - 把物品放回玩家背包，背包已满的部分掉在脚下；
+   - 删除本次失败放置留下的 `-grave-` 备份（`graveRecovery.removeGraveBackup`）；
+   - 移除 `HorizonFix-graves.txt` 里对应的位置记录，`/graves` 不再列出。
+
+玩家不在线、或仍停留在死亡界面时，物品先写入 `config/HorizonFix-returns.dat`，登录或重生后自动发放，
+不会因为掉线而丢失。
+
+### 与 OpenBlocks 备份的关系
+
+OpenBlocks 每次死亡都会往 `world/data` 写两份文件：
+
+| 文件 | 内容 | 本模块的处理 |
+|---|---|---|
+| `inventory-<玩家>-<时间>-death-N.dat` | 死亡瞬间的完整背包，`/ob_inventory restore` 的常用来源 | **保留**。正常放置成功时它同样存在，属既有兜底手段 |
+| `inventory-<玩家>-<时间>-grave-N.dat` | 墓碑实际装入的物品，`Placed=false` 表示放置失败 | 自动返还后**删除**，否则再执行一次 `/ob_inventory restore` 就会复制一份 |
+
+只删除 `Placed=false`、UUID 与写入时间都对得上的那一份，成功放置的备份不受影响。
+
+### 判定边界
+
+- 事件被取消（同一 tick 的第二次死亡）时不介入：那次掉落由 OpenBlocks 丢回地面，属预期行为。
+- 世界未载入导致无法判定时先等待，最多 200 tick；仍无法判定则按「已生成」处理并输出警告，
+  不做返还——宁可让玩家自己去取，也不制造复制漏洞。
+- 自动返还关闭（`graveRecovery.enabled=false`）时恢复 1.2.x 的行为：只提示，不改动物品。
+
+### 与自动重生插件（HorizonFixPlugin）的协作
+
+HorizonFixPlugin 默认在死亡后 5 tick 调用 `Player.spigot().respawn()`，晚于本模块 2 tick 的校验：
+校验时玩家仍处于死亡状态，物品先写入 `config/HorizonFix-returns.dat`，在 `PlayerRespawnEvent` 上发放。
+把 `respawn.delay-ticks` 调到 1 时，重生先于校验发生，物品直接进入背包。两条路径均在 server2 实测通过。
+
+墓碑放置本身与死亡同 tick，早于任何重生任务，不受自动重生影响；正常死亡仍会生成墓碑，
+此时不会触发返还。
+
+---
+
+## 五、被取消死亡的快照（`deathSnapshot`）
 
 OpenBlocks 的 `PlayerInventoryStore.onPlayerDeath` 在 `HIGH` 优先级无条件落盘，不检查 `isCanceled()`；
 Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是每次「打不死」都会多出一份
@@ -161,7 +217,7 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 ---
 
-## 五、配置
+## 六、配置
 
 文件：`config/HorizonFix.cfg`（首次启动自动生成，注释为英文以避免 GBK/UTF-8 编码问题）。
 
@@ -187,6 +243,14 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 | `notifyOnPlace` | `true` | 放置时把坐标发到聊天栏 |
 | `notifyOnLogin` | `true` | 登录时提醒未取走的墓碑 |
 | `loginLimit` | `3` | 登录时最多直接列出几座，超出只给数量 |
+
+### `graveRecovery`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 墓碑未能生成时自动把物品放回背包。关闭后只提示，不改动物品 |
+| `removeDroppedItems` | `true` | 移除 OpenBlocks 在放置失败时丢到地面的同一批物品，避免与返还的物品重复 |
+| `removeGraveBackup` | `true` | 删除本次失败放置留下的 `-grave-` 备份，避免 `/ob_inventory restore` 再复制一份 |
 
 ### `deathSnapshot`
 
@@ -214,7 +278,7 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 ---
 
-## 六、诊断日志
+## 七、诊断日志
 
 墓碑失败时（受 `grave.diagnosticLimit` 限制）：
 
@@ -254,9 +318,20 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 `来源区块` 是正在执行填充的区块，`触发载入` 是在此期间被载入的另一区块。该日志只用于定位责任模组，不改变生成行为。
 
+墓碑失败后的自动返还：
+
+```text
+[HorizonFix] xxx 的墓碑未能生成，已把 37 件物品放回背包（0 件因背包已满掉在脚下）
+[HorizonFix] xxx 的墓碑未能生成，玩家不在线，37 件物品已暂存，登录后自动放回
+[HorizonFix] 已删除墓碑备份 inventory-xxx-2026-11-11_17.20.03-grave-0.dat
+[HorizonFix] 无法判定 xxx 的墓碑是否生成，按已生成处理，不改动物品
+```
+
+最后一条出现在世界未载入且等待 200 tick 仍无法判定的情况，此时不做返还。
+
 ---
 
-## 七、关于「重生与放置撞在同一 tick」
+## 八、关于「重生与放置撞在同一 tick」
 
 交接资料提出：自动重生任务与墓碑放置排在同一 tick，顺序不稳，重生先执行时区块失去加载来源。
 按 1.7.10 的实际调用链，**这条不成立**：
@@ -278,20 +353,21 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ---
 
-## 八、安装与回滚
+## 九、安装与回滚
 
-1. 构建产物 `build/libs/HorizonFix-1.2.0.jar`；
-2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.2.0.jar`；
+1. 构建产物 `build/libs/HorizonFix-1.3.0.jar`；
+2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.3.0.jar`；
 3. **客户端不需要安装**：`acceptableRemoteVersions = "*"` 允许缺少该模组的客户端进入，六处第三方适配均作用于服务端代码路径；
 4. 重启服务端。
 
 运行环境需具备 Mixin 库，GTNH 2.9.0 自带的 UniMixins 已满足该条件。
 
-回滚：删除 jar 并重启即可。事件类修复不写入存档，第三方 mixin 随 jar 一起移除；`config/HorizonFix.cfg` 可一并删除。
+回滚：删除 jar 并重启即可。事件类修复不写入存档，第三方 mixin 随 jar 一起移除；`config/HorizonFix.cfg`、
+`config/HorizonFix-graves.txt`、`config/HorizonFix-returns.dat` 可一并删除。
 
 ---
 
-## 九、构建
+## 十、构建
 
 ```bash
 export JAVA_HOME=<JDK 8>

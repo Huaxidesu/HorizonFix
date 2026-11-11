@@ -2,7 +2,7 @@
   {
     "modid": "horizonfix",
     "name": "Horizon Fix",
-    "description": "服务端修复合集：墓碑落点与位置提醒、被取消死亡的背包快照清理、无线红石附加数据补建、级联生成诊断，以及 ExtraUtilities / Botania / MrTJPCore 的适配修复。事件类修复可在 config/HorizonFix.cfg 中单独关闭。",
+    "description": "服务端修复合集：墓碑落点与位置提醒、墓碑未生成时自动返还物品、被取消死亡的背包快照清理、无线红石附加数据补建、级联生成诊断，以及 ExtraUtilities / Botania / MrTJPCore 的适配修复。事件类修复可在 config/HorizonFix.cfg 中单独关闭。",
     "version": "${version}",
     "mcversion": "${mcversion}",
     "url": "",

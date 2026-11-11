@@ -17,6 +17,7 @@ import cpw.mods.fml.common.eventhandler.EventBus;
 import dev.dsmnh.horizon.fix.grave.CommandGraves;
 import dev.dsmnh.horizon.fix.grave.CommandPermission;
 import dev.dsmnh.horizon.fix.grave.GraveHandler;
+import dev.dsmnh.horizon.fix.grave.GraveRecovery;
 import dev.dsmnh.horizon.fix.grave.GraveTracker;
 import dev.dsmnh.horizon.fix.snapshot.DeathSnapshotGuard;
 import dev.dsmnh.horizon.fix.world.CascadeWorldgenDiagnostic;
@@ -47,12 +48,14 @@ public class HorizonFix {
         File file = new File(event.getModConfigurationDirectory(), "HorizonFix.cfg");
         FixConfig.load(file);
         GraveTracker.get().init(event.getModConfigurationDirectory());
+        GraveRecovery.get().init(event.getModConfigurationDirectory());
     }
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         registerGrave();
         registerGraveTracker();
+        registerGraveRecovery();
         registerDeathSnapshot();
         registerWirelessRedstone();
         registerWorldgenDiagnostic();
@@ -88,6 +91,23 @@ public class HorizonFix {
         MinecraftForge.EVENT_BUS.register(tracker);
         FMLCommonHandler.instance().bus().register(tracker);
         LOG.info("[HorizonFix] 墓碑位置提醒已注册");
+    }
+
+    private void registerGraveRecovery() {
+        if (!FixConfig.graveRecoveryEnabled && !FixConfig.graveTrackerEnabled) {
+            LOG.info("[HorizonFix] 墓碑失败后的处理已关闭");
+            return;
+        }
+        if (!Loader.isModLoaded("OpenBlocks")) {
+            LOG.info("[HorizonFix] 未检测到 OpenBlocks，墓碑失败处理不注册");
+            return;
+        }
+        GraveRecovery recovery = GraveRecovery.get();
+        MinecraftForge.EVENT_BUS.register(recovery);
+        FMLCommonHandler.instance().bus().register(recovery);
+        LOG.info(
+                "[HorizonFix] 墓碑失败{}已注册",
+                FixConfig.graveRecoveryEnabled ? "自动返还" : "提示");
     }
 
     @Mod.EventHandler

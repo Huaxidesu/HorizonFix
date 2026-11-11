@@ -50,6 +50,15 @@ public class FixConfig {
     /** 登录时最多直接列出几座墓碑，超出则只给数量提示。 */
     public static int graveTrackerLoginLimit = 3;
 
+    /** 墓碑未能生成时自动把物品放回玩家背包。 */
+    public static boolean graveRecoveryEnabled = true;
+
+    /** 自动返还时移除 OpenBlocks 丢到地面的同一批物品，避免复制。 */
+    public static boolean graveRecoveryRemoveDropped = true;
+
+    /** 自动返还后删除本次失败放置留下的备份，避免 {@code /ob_inventory restore} 再复制一份。 */
+    public static boolean graveRecoveryRemoveBackup = true;
+
     /** 被取消的死亡是否清理 OpenBlocks 背包快照。 */
     public static boolean deathSnapshotEnabled = true;
 
@@ -145,6 +154,25 @@ public class FixConfig {
                     1,
                     16,
                     "How many graves to list on login. Above this only the count is shown.");
+
+            graveRecoveryEnabled = cfg.getBoolean(
+                    "enabled",
+                    "graveRecovery",
+                    graveRecoveryEnabled,
+                    "Return the items to the player when the grave could not be placed. "
+                            + "Disabling it restores the old behaviour of only telling the player to ask an admin.");
+            graveRecoveryRemoveDropped = cfg.getBoolean(
+                    "removeDroppedItems",
+                    "graveRecovery",
+                    graveRecoveryRemoveDropped,
+                    "Remove the loot OpenBlocks dropped on the ground after the failed placement, "
+                            + "so the returned items are not duplicated.");
+            graveRecoveryRemoveBackup = cfg.getBoolean(
+                    "removeGraveBackup",
+                    "graveRecovery",
+                    graveRecoveryRemoveBackup,
+                    "Delete the '-grave-' backup written for the failed placement. Restoring it with "
+                            + "'/ob_inventory restore' would duplicate the returned items.");
 
             deathSnapshotEnabled = cfg.getBoolean(
                     "enabled",

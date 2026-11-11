@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.ChatComponentText;
@@ -38,6 +37,8 @@ import openblocks.api.GraveSpawnEvent;
  *
  * <p>「是否已取走」只在区块已载入时判定：区块未载入不做任何载入动作，直接按未取走处理。</p>
  *
+ * <p>墓碑是否真的生成由 {@link GraveRecovery} 判定；确认失败时由它调用 {@link #forget} 移除记录。</p>
+ *
  * <p>本类与 {@link GraveHandler} 同为 {@code LOWEST}，主类先注册 GraveHandler，
  * 因此这里读到的是改写后的最终坐标。</p>
  */
@@ -50,12 +51,6 @@ public class GraveTracker {
     /** 用类名判断，避免为 OpenModsLib 增加编译期依赖。 */
     private static final String GRAVE_CLASS = "openblocks.common.block.BlockGrave";
 
-    /** 快照文件前缀，与 OpenBlocks 的 PlayerInventoryStore 一致。 */
-    private static final String PREFIX = "inventory-";
-
-    /** 与 OpenBlocks 一致：玩家名里的非法字符替换为下划线。 */
-    private static final Pattern SAFE_CHARS = Pattern.compile("[^A-Za-z0-9_-]");
-
     /** 全局记录上限。 */
     private static final int MAX_RECORDS = 256;
 
@@ -65,12 +60,6 @@ public class GraveTracker {
     private static final GraveTracker INSTANCE = new GraveTracker();
 
     private final List<Record> records = new ArrayList<Record>();
-
-    /** 放置后待验证的墓碑，用于判断是否真的生成成功。 */
-    private final List<Pending> pending = new ArrayList<Pending>();
-
-    /** 放置发生在事件之后同一 tick，留 2 tick 余量再验证。 */
-    private static final int VERIFY_DELAY_TICKS = 2;
 
     private File storage;
 
@@ -89,6 +78,8 @@ public class GraveTracker {
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onGraveSpawn(GraveSpawnEvent event) {
         if (!FixConfig.graveTrackerEnabled) return;
+        // 被取消的第二次死亡不会放置墓碑，记录它会让 /graves 多出一个不存在的位置
+        if (event.isCanceled()) return;
         if (!event.hasLocation()) return;
 
         EntityPlayer player = event.entityPlayer;
@@ -110,7 +101,6 @@ public class GraveTracker {
                 System.currentTimeMillis());
 
         add(record);
-        pending.add(new Pending(record));
 
         if (FixConfig.graveTrackerNotifyPlace) {
             send(
@@ -123,92 +113,35 @@ public class GraveTracker {
         }
     }
 
-    /**
-     * 校验墓碑是否真的生成成功。
-     *
-     * <p>{@code GraveSpawnEvent} 只是「准备放置」，OpenBlocks 在事件之后才写方块，失败时会静默丢弃物品。
-     * 因此在放置后 2 tick 检查一次方块：不是墓碑就说明没生成，此时把死亡快照的命令发给玩家，
-     * 让他能自行找回。</p>
-     */
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
 
         // 命令进入 Bukkit 命令表后清掉权限要求，非 op 才可用
         CommandPermission.ensureNoPermission("graves");
+    }
 
-        if (pending.isEmpty()) return;
+    /**
+     * 移除一条记录。
+     *
+     * <p>{@link GraveRecovery} 确认墓碑没有生成时调用，避免 {@code /graves} 与登录提醒
+     * 继续列出不存在的位置。</p>
+     */
+    public void forget(UUID owner, int dimensionId, int x, int y, int z) {
+        boolean changed = false;
 
-        Iterator<Pending> it = pending.iterator();
-        while (it.hasNext()) {
-            Pending item = it.next();
-            if (++item.ticks < VERIFY_DELAY_TICKS) continue;
-            it.remove();
-            try {
-                verify(item.record);
-            } catch (Throwable t) {
-                LOG.warn("[HorizonFix] 校验墓碑是否生成失败", t);
+        synchronized (records) {
+            Iterator<Record> it = records.iterator();
+            while (it.hasNext()) {
+                Record record = it.next();
+                if (!record.owner.equals(owner)) continue;
+                if (record.dimensionId != dimensionId || record.x != x || record.y != y || record.z != z) continue;
+                it.remove();
+                changed = true;
             }
         }
-    }
 
-    private void verify(Record record) {
-        World world = DimensionManager.getWorld(record.dimensionId);
-        if (world == null) return;
-        if (!world.blockExists(record.x, record.y, record.z)) return;
-        if (GRAVE_CLASS.equals(world.getBlock(record.x, record.y, record.z).getClass().getName())) {
-            return;
-        }
-
-        EntityPlayer player = world.func_152378_a(record.owner);
-        if (player == null) return;
-
-        String snapshot = newestSnapshot(world, player);
-        if (snapshot == null) {
-            send(
-                    player,
-                    EnumChatFormatting.RED + "[墓碑] " + EnumChatFormatting.RESET
-                            + "墓碑未能生成，物品已存入死亡快照，请联系管理员用 /ob_inventory 找回");
-            return;
-        }
-
-        send(
-                player,
-                EnumChatFormatting.RED + "[墓碑] " + EnumChatFormatting.RESET
-                        + "墓碑未能生成，物品已存入死亡快照，可执行 " + EnumChatFormatting.AQUA
-                        + "/ob_inventory restore " + player.getCommandSenderName() + " " + snapshot
-                        + EnumChatFormatting.RESET + " 找回");
-    }
-
-    /** 取该玩家最新的死亡快照 ID，找不到返回 null。 */
-    private String newestSnapshot(World world, EntityPlayer player) {
-        try {
-            File folder = dumpFolder(world);
-            if (folder == null) return null;
-
-            String prefix = PREFIX + safeName(player) + "-";
-            File newest = null;
-            File[] files = folder.listFiles();
-            if (files == null) return null;
-
-            for (File file : files) {
-                String name = file.getName();
-                if (!name.startsWith(prefix) || !name.contains("-grave-") || !name.endsWith(".dat")) continue;
-                if (newest == null || file.lastModified() > newest.lastModified()) newest = file;
-            }
-            if (newest == null) return null;
-
-            String name = newest.getName();
-            return name.substring(PREFIX.length(), name.length() - ".dat".length());
-        } catch (Throwable t) {
-            return null;
-        }
-    }
-
-    private static File dumpFolder(World world) {
-        if (world == null || world.getSaveHandler() == null) return null;
-        File probe = world.getSaveHandler().getMapFileFromName("horizonfix_probe");
-        return probe == null ? null : probe.getParentFile();
+        if (changed) save();
     }
 
     @SubscribeEvent
@@ -359,13 +292,6 @@ public class GraveTracker {
         }
     }
 
-    private static String safeName(EntityPlayer player) {
-        com.mojang.authlib.GameProfile profile = player.getGameProfile();
-        String name = profile == null ? null : profile.getName();
-        if (name == null || name.isEmpty()) name = player.getCommandSenderName();
-        return SAFE_CHARS.matcher(name).replaceAll("_");
-    }
-
     public static String describe(Record record) {
         return dimensionName(record.dimensionId) + " (" + record.x + ", " + record.y + ", " + record.z + ")";
     }
@@ -389,16 +315,6 @@ public class GraveTracker {
         long hours = minutes / 60;
         if (hours < 24) return hours + " 小时前";
         return (hours / 24) + " 天前";
-    }
-
-    private static class Pending {
-
-        final Record record;
-        int ticks;
-
-        Pending(Record record) {
-            this.record = record;
-        }
     }
 
     public static class Record {
