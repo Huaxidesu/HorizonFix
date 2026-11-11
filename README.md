@@ -194,8 +194,8 @@ OpenBlocks 每次死亡都会往 `world/data` 写两份文件：
 ### 与自动重生插件（HorizonFixPlugin）的协作
 
 HorizonFixPlugin 默认在死亡后 5 tick 调用 `Player.spigot().respawn()`，晚于本模块 2 tick 的校验：
-校验时玩家仍处于死亡状态，物品先写入 `config/HorizonFix-returns.dat`，在 `PlayerRespawnEvent` 上发放。
-把 `respawn.delay-ticks` 调到 1 时，重生先于校验发生，物品直接进入背包。两条路径均在 server2 实测通过。
+校验时玩家仍处于死亡状态，物品先写入 `config/HorizonFix-returns.dat`，在 `PlayerRespawnEvent` 上发放
+（server2 实测）。把 `respawn.delay-ticks` 调到 1 时，重生先于校验发生，物品直接进入背包。
 
 墓碑放置本身与死亡同 tick，早于任何重生任务，不受自动重生影响；正常死亡仍会生成墓碑，
 此时不会触发返还。
