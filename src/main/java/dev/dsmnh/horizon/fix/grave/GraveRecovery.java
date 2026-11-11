@@ -162,16 +162,16 @@ public class GraveRecovery {
             Pending item = it.next();
             if (++item.ticks < VERIFY_DELAY_TICKS) continue;
 
-            Boolean placed;
+            Placement placement;
             try {
-                placed = check(item);
+                placement = check(item);
             } catch (Throwable t) {
                 LOG.warn("[HorizonFix] 校验墓碑是否生成失败", t);
-                placed = null;
+                placement = Placement.UNKNOWN;
             }
 
-            // 世界未载入等无法判定的情况先等待；超过上限时按已生成处理，不做返还，避免复制物品
-            if (placed == null) {
+            // 世界未载入时先等待；超过上限按已生成处理，不做返还，避免复制物品
+            if (placement == Placement.UNKNOWN) {
                 if (item.ticks < MAX_WAIT_TICKS) continue;
                 LOG.warn("[HorizonFix] 无法判定 {} 的墓碑是否生成，按已生成处理，不改动物品", item.name);
                 it.remove();
@@ -179,7 +179,22 @@ public class GraveRecovery {
             }
 
             it.remove();
-            if (placed) continue;
+
+            if (placement == Placement.PRESENT) continue;
+
+            if (placement == Placement.DESTROYED) {
+                LOG.info(
+                        "[HorizonFix] {} 的墓碑生成后被破坏，物品已由 OpenBlocks 掉落在原地，不做返还",
+                        item.name);
+                continue;
+            }
+
+            if (placement == Placement.UNDETERMINED) {
+                LOG.warn(
+                        "[HorizonFix] {} 的墓碑位置为空且没有可用的墓碑备份，无法判定是否放置成功，不改动物品",
+                        item.name);
+                continue;
+            }
 
             try {
                 handleFailure(item);
@@ -190,26 +205,31 @@ public class GraveRecovery {
     }
 
     /**
-     * 判定墓碑是否真的生成。
+     * 判定墓碑的实际状态。
      *
-     * @return {@code true} 已生成，{@code false} 未生成，{@code null} 当前无法判定
+     * <p>只查方块是不够的：墓碑可能已经生成、随后被爆炸或凋零破坏。OpenBlocks 破坏墓碑时会把
+     * 内容物掉到世界（{@code OpenBlock.breakBlock} 的 {@code getTileBreakDrops}），此时再返还一次
+     * 就是复制物品。因此方块不在时改为读取 OpenBlocks 自己写的备份：
+     * {@code Placed=true} 表示放置成功过，{@code Placed=false} 才是放置失败。</p>
      */
-    private Boolean check(Pending item) {
-        if (!item.hasPosition) return Boolean.FALSE;
+    private Placement check(Pending item) {
+        if (!item.hasPosition) return Placement.MISSING;
 
         World world = DimensionManager.getWorld(item.dimensionId);
-        if (world == null) return null;
+        if (world == null) return Placement.UNKNOWN;
 
         world.getChunkFromChunkCoords(item.x >> 4, item.z >> 4);
 
         Block block = world.getBlock(item.x, item.y, item.z);
-        if (block == null || !isType(block, GRAVE_BLOCK)) return Boolean.FALSE;
+        if (block != null && isType(block, GRAVE_BLOCK)) {
+            // 方块已写入但 TileEntity 创建失败时，OpenBlocks 同样判定放置失败并把物品丢回地面
+            TileEntity tile = world.getTileEntity(item.x, item.y, item.z);
+            if (tile != null && isType(tile, GRAVE_TILE)) return Placement.PRESENT;
+        }
 
-        // 方块已写入但 TileEntity 创建失败时，OpenBlocks 同样判定放置失败并把物品丢回地面
-        TileEntity tile = world.getTileEntity(item.x, item.y, item.z);
-        if (tile == null || !isType(tile, GRAVE_TILE)) return Boolean.FALSE;
-
-        return Boolean.TRUE;
+        Boolean placed = readPlacedFlag(item);
+        if (placed == null) return Placement.UNDETERMINED;
+        return placed.booleanValue() ? Placement.DESTROYED : Placement.MISSING;
     }
 
     private static boolean isType(Object value, String className) {
@@ -217,6 +237,58 @@ public class GraveRecovery {
             if (className.equals(type.getName())) return true;
         }
         return false;
+    }
+
+    /**
+     * 读取本次死亡对应的墓碑备份里的 {@code Placed} 标记。
+     *
+     * @return {@code null} 表示找不到可用的备份（例如 {@code backupGraves=false}）
+     */
+    private Boolean readPlacedFlag(Pending item) {
+        File folder = saveFolder(item.dimensionId);
+        if (folder == null) return null;
+
+        File[] files = folder.listFiles();
+        if (files == null) return null;
+
+        String prefix = PREFIX + safeName(item.name) + "-";
+        Boolean result = null;
+        long best = Long.MAX_VALUE;
+
+        for (File file : files) {
+            String name = file.getName();
+            if (!name.startsWith(prefix) || !name.contains("-grave-") || !name.endsWith(".dat")) continue;
+
+            try (InputStream in = new FileInputStream(file)) {
+                NBTTagCompound root = CompressedStreamTools.readCompressed(in);
+                if (root == null) continue;
+                if (!item.owner.toString().equalsIgnoreCase(root.getString("PlayerUUID"))) continue;
+
+                long delta = Math.abs(root.getLong("Created") - item.time);
+                if (delta > BACKUP_WINDOW_MS || delta >= best) continue;
+
+                best = delta;
+                result = Boolean.valueOf(root.getBoolean("Placed"));
+            } catch (Throwable ignored) {
+                // 单个文件损坏不影响其余候选
+            }
+        }
+
+        return result;
+    }
+
+    /** 墓碑的判定结果。 */
+    private enum Placement {
+        /** 方块与 TileEntity 都在。 */
+        PRESENT,
+        /** 墓碑确实没有生成。 */
+        MISSING,
+        /** 墓碑生成过、随后被破坏，内容物已由 OpenBlocks 掉到世界。 */
+        DESTROYED,
+        /** 世界未载入，当前无法判定。 */
+        UNKNOWN,
+        /** 方块不在且没有可用的备份，无法判定是否放置成功。 */
+        UNDETERMINED
     }
 
     // ------------------------------------------------------------ 失败处理
