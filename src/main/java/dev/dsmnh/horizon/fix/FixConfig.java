@@ -86,7 +86,20 @@ public class FixConfig {
     /** 单次启动最多输出多少条级联世界生成日志。 */
     public static int worldgenDiagnosticLimit = 16;
 
+    /** ExtraUtilities 分割徽章激活与仪式修复（GTNH 2.9.1+ 已由 Hodgepodge 2.7.223 官方内置修复，默认关闭以避免冲突）。 */
+    public static boolean extraUtilsDivisionSigil = false;
+
+    /** ExtraUtilities 垃圾桶读档后重扫库存修复。 */
+    public static boolean extraUtilsTrashCan = true;
+
+    /** Botania 特殊花亮度查询空指针修复。 */
+    public static boolean botaniaSpecialFlower = true;
+
+    /** MrTJPCore 活跃区块集合防载入修复。 */
+    public static boolean mrtjpBlockUpdate = true;
+
     public static void load(File file) {
+        if (file == null) return;
         Configuration cfg = new Configuration(file);
         try {
             cfg.load();
@@ -227,6 +240,31 @@ public class FixConfig {
                     0,
                     256,
                     "Maximum number of cascading worldgen log lines per server start. 0 disables them.");
+
+            extraUtilsDivisionSigil = cfg.getBoolean(
+                    "divisionSigil",
+                    "extrautils",
+                    extraUtilsDivisionSigil,
+                    "Fix ExtraUtilities Division Sigil activation ritual and right-click on enchantment tables/beacons under Crucible/Thermos. "
+                            + "GTNH 2.9.1+ includes this fix natively in Hodgepodge (PR #1058), so it is disabled by default. "
+                            + "Enable this option if running GTNH 2.9.0.");
+            extraUtilsTrashCan = cfg.getBoolean(
+                    "trashCan",
+                    "extrautils",
+                    extraUtilsTrashCan,
+                    "Force ExtraUtilities Trash Can to rescan inventory after loading save.");
+
+            botaniaSpecialFlower = cfg.getBoolean(
+                    "specialFlower",
+                    "botania",
+                    botaniaSpecialFlower,
+                    "Fix Botania special flower NPE when querying light value without TileEntity.");
+
+            mrtjpBlockUpdate = cfg.getBoolean(
+                    "blockUpdate",
+                    "mrtjp",
+                    mrtjpBlockUpdate,
+                    "Prevent MrTJPCore from loading unloaded chunks when computing active chunk set.");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 读取配置失败，全部使用默认值", t);
         } finally {

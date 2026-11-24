@@ -12,6 +12,8 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 import net.minecraft.launchwrapper.Launch;
 
+import dev.dsmnh.horizon.fix.FixConfig;
+
 /**
  * 按目标模组的 jar 是否存在决定加载哪些适配 mixin。
  *
@@ -39,21 +41,54 @@ public class MixinPlugin implements IMixinConfigPlugin {
     public void acceptTargets(java.util.Set<String> myTargets, java.util.Set<String> otherTargets) {
     }
 
+    private static boolean configLoaded = false;
+
+    private static void ensureConfigLoaded() {
+        if (configLoaded) {
+            return;
+        }
+        configLoaded = true;
+        try {
+            File configDir;
+            if (Launch.minecraftHome != null) {
+                configDir = new File(Launch.minecraftHome, "config");
+            } else {
+                String userDir = System.getProperty("user.dir");
+                if (userDir != null && !userDir.isEmpty()) {
+                    configDir = new File(userDir, "config");
+                } else {
+                    configDir = new File("config");
+                }
+            }
+            File configFile = new File(configDir, "HorizonFix.cfg");
+            FixConfig.load(configFile);
+        } catch (Throwable t) {
+            LOG.warn("[HorizonFix] mixin 阶段读取配置失败，使用默认配置: {}", t.toString());
+        }
+    }
+
     @Override
     public List<String> getMixins() {
+        ensureConfigLoaded();
         LOG.info("[HorizonFix] mixin 探测 minecraftHome={} user.dir={}",
                 Launch.minecraftHome, System.getProperty("user.dir"));
         List<String> result = new ArrayList<String>();
         if (isModPresent("ExtraUtilities", "com.rwtema.extrautils.EventHandlerServer")) {
-            result.add("MixinExtraUtilsActivationRitual");
-            result.add("MixinExtraUtilsDivisionSigil");
-            result.add("MixinExtraUtilsSiege");
-            result.add("MixinExtraUtilsTrashCan");
+            if (FixConfig.extraUtilsDivisionSigil) {
+                result.add("MixinExtraUtilsActivationRitual");
+                result.add("MixinExtraUtilsDivisionSigil");
+                result.add("MixinExtraUtilsSiege");
+            } else {
+                LOG.info("[HorizonFix] ExtraUtilities 分割徽章修复已在配置中关闭（GTNH 2.9.1+ 已由 Hodgepodge 原生支持）");
+            }
+            if (FixConfig.extraUtilsTrashCan) {
+                result.add("MixinExtraUtilsTrashCan");
+            }
         }
-        if (isModPresent("Botania", "vazkii.botania.common.block.BlockSpecialFlower")) {
+        if (FixConfig.botaniaSpecialFlower && isModPresent("Botania", "vazkii.botania.common.block.BlockSpecialFlower")) {
             result.add("MixinBotaniaSpecialFlower");
         }
-        if (isModPresent("MrTJPCore", "mrtjp.core.world.BlockUpdateHandler$")) {
+        if (FixConfig.mrtjpBlockUpdate && isModPresent("MrTJPCore", "mrtjp.core.world.BlockUpdateHandler$")) {
             result.add("MixinMrTjpBlockUpdateHandler");
         }
         LOG.info("[HorizonFix] 适配 mixin 已启用 {} 项：{}", result.size(), result);

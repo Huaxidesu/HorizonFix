@@ -1,8 +1,23 @@
 # HorizonFix
 
-GTNH 1.7.10 服务端修复合集。**1.3.0 新增墓碑未生成时的自动返还**：放置彻底失败时不再只提示管理员恢复，而是把物品直接放回玩家背包；**1.3.1 修复墓碑生成后被凋零/爆炸破坏时被误判为「未生成」而重复返还的问题**。**1.2.0 的重点修复是 ExtraUtilities 分割徽章在混合服务端上无法激活的问题**，详见下方「重点修复」一节。事件类修复各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器不注册，
-运行期开销为零；删除 jar 即完全回滚。第三方模组适配以条件加载的 mixin 实现，只注入 ExtraUtilities、
-Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的类；目标模组缺失时对应 mixin 不加载。
+GTNH 1.7.10 服务端修复合集。**1.4.0 正式支持 GTNH 2.9.1**（`extrautils.divisionSigil` 默认关闭以防与 2.9.1 上游 Hodgepodge 冲突，保留 2.9.0 开关兼容）；**1.3.0 新增墓碑未生成时的自动返还**：放置彻底失败时不再只提示管理员恢复，而是把物品直接放回玩家背包；**1.3.1 修复墓碑生成后被凋零/爆炸破坏时被误判为「未生成」而重复返还的问题**。事件类修复与第三方 mixin 适配各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器或 mixin 不注册，运行期开销为零；删除 jar 即完全回滚。第三方模组适配以条件加载的 mixin 实现，只注入 ExtraUtilities、Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的类；目标模组缺失时不加载。
+
+## 版本与整合包兼容性
+
+| HorizonFix 版本 | 整合包兼容性 | 说明 |
+|---|---|---|
+| **`1.4.0`+（最新）** | **GTNH 2.9.1**（默认）<br>GTNH 2.9.0（可选） | **正式适配 GTNH 2.9.1**。由于 GTNH 2.9.1 已由上游 Hodgepodge 内置分割徽章修复，本版将 `extrautils.divisionSigil` **默认关闭**以防冲突；若用于 GTNH 2.9.0，手动将该项设为 `true` 即可 |
+| **`1.3.1` 及以下**<br>（`1.2.0` ~ `1.3.1`） | **GTNH 2.9.0** | 对应兼容 GTNH 2.9.0。默认启用分割徽章在混合服务端的激活仪式、右键判定与围城信标修复 |
+
+### GTNH 2.9.1 上游修复说明
+
+GTNH 2.9.1 已由上游官方更新修复了以下项目：
+
+- **ExtraUtilities 分割徽章激活（Hodgepodge PR #1058 / #1029）**：
+  GTNH 2.9.1 内置的 Hodgepodge 2.7.223+ 已合入 `Fix division sigil activation ritual on Thermos/Crucible`，原生包含 `extrautilities.MixinEventHandlerServer`（仪式判定）、`extrautilities.MixinItemDivisionSigil`（右键附魔台/信标判定）与 `extrautilities.MixinEventHandlerSiege`（围城信标类判定），配置项 `fixExtraUtilitiesDivisionSigilActivation` 默认开启。
+- **应对方案**：HorizonFix 1.4.0 新增 `extrautils.divisionSigil` 开关并**默认置为 `false`**，避免与 2.9.1 上游 Hodgepodge 产生重复注入与冲突。若服务器仍在 GTNH 2.9.0，只需在配置中将该项置为 `true`。
+
+---
 
 | 模块 | 修复内容 | 配置节 |
 |---|---|---|
@@ -12,10 +27,10 @@ Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的�
 | 无线红石 | WR-CBE Addons 玩家附加数据缺失导致的 NPE 崩服 | `wirelessredstone` |
 | 死亡快照 | 死亡被取消后 OpenBlocks 仍会写背包快照，恢复即复制物品 | `deathSnapshot` |
 | 级联生成诊断 | 记录区块填充期间触发的相邻区块载入 | `worldgen` |
-| **分割徽章激活** | **重点**：修复 ExtraUtilities 分割徽章在混合服务端无法激活、激活后右键附魔台或信标无响应 | 按目标模组加载 |
-| 其他第三方适配 | ExtraUtilities 围城信标判定与垃圾桶读档、Botania 亮度查询、MrTJPCore 活跃区块集合 | 按目标模组加载 |
+| **分割徽章激活** | 修复 ExtraUtilities 分割徽章在混合服务端无法激活、激活后右键附魔台或信标无响应 | `extrautils.divisionSigil`<br>（2.9.1 原生已修，默认 `false`） |
+| 其他第三方适配 | ExtraUtilities 垃圾桶读档、Botania 亮度查询、MrTJPCore 活跃区块集合 | `extrautils.trashCan`<br>`botania.specialFlower`<br>`mrtjp.blockUpdate` |
 
-mixin 运行期依赖 Mixin 库，GTNH 2.9.0 自带的 UniMixins 已提供，无需额外安装。
+mixin 运行期依赖 Mixin 库，GTNH 2.9.0 / 2.9.1 自带的 UniMixins 已提供，无需额外安装。
 
 自动重生、0 血修复属于 Bukkit 插件侧，不在本模组范围内，由
 [HorizonFixPlugin](https://github.com/Huaxidesu/HorizonFixPlugin) 提供。两个产物互相独立，可单独安装。
@@ -23,6 +38,11 @@ mixin 运行期依赖 Mixin 库，GTNH 2.9.0 自带的 UniMixins 已提供，无
 ---
 
 ## 重点修复：ExtraUtilities 分割徽章激活
+
+> [!NOTE] GTNH 2.9.1 兼容说明
+> 在 GTNH 2.9.1 中，上游 Hodgepodge 2.7.223+（PR #1058）已原生内置本修复（`fixExtraUtilitiesDivisionSigilActivation` 默认 `true`）。
+> 因此 HorizonFix 1.4.0 起，`extrautils.divisionSigil` **默认设为 `false`** 以防冲突。
+> 若仍运行于 GTNH 2.9.0 环境，请在 `config/HorizonFix.cfg` 中将 `divisionSigil` 手动改为 `true`。
 
 ### 现象
 
@@ -282,6 +302,25 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 | `enabled` | `true` | 记录区块填充期间触发的相邻区块载入 |
 | `logLimit` | `16` | 单次启动的日志条数上限，`0` 关闭 |
 
+### `extrautils`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `divisionSigil` | `false` | 修复混合服务端上分割徽章激活仪式、右键附魔台与信标、围城信标判定。**GTNH 2.9.1+ 已由 Hodgepodge 原生合入，因此默认关闭**；GTNH 2.9.0 请设为 `true` 开启 |
+| `trashCan` | `true` | 读档后强制垃圾桶在下一次 tick 重扫库存，避免残留物品未进入销毁队列 |
+
+### `botania`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `specialFlower` | `true` | 特殊花亮度查询在目标位置没有 TileEntity 时返回缺省亮度，防御 NPE |
+
+### `mrtjp`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `blockUpdate` | `true` | MrTJPCore 活跃区块集合只加入已加载区块，避免后续计算带入未加载区块 |
+
 ---
 
 ## 七、诊断日志
@@ -361,12 +400,13 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ## 九、安装与回滚
 
-1. 构建产物 `build/libs/HorizonFix-1.3.1.jar`；
-2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.3.1.jar`；
-3. **客户端不需要安装**：`acceptableRemoteVersions = "*"` 允许缺少该模组的客户端进入，六处第三方适配均作用于服务端代码路径；
+1. 构建产物 `build/libs/HorizonFix-1.4.0.jar`；
+2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.4.0.jar`；
+3. **客户端不需要安装**：`acceptableRemoteVersions = "*"` 允许缺少该模组的客户端进入，第三方适配均作用于服务端代码路径；
 4. 重启服务端。
 
-运行环境需具备 Mixin 库，GTNH 2.9.0 自带的 UniMixins 已满足该条件。
+运行环境需具备 Mixin 库，GTNH 2.9.0 / 2.9.1 自带的 UniMixins 已满足该条件。
+若为 GTNH 2.9.0 环境，需在 `config/HorizonFix.cfg` 中将 `extrautils.divisionSigil` 手动设为 `true`。GTNH 2.9.1 保持默认 `false` 即可。
 
 回滚：删除 jar 并重启即可。事件类修复不写入存档，第三方 mixin 随 jar 一起移除；`config/HorizonFix.cfg`、
 `config/HorizonFix-graves.txt`、`config/HorizonFix-returns.dat` 可一并删除。
