@@ -73,7 +73,7 @@ public final class DrawerControllerExploder {
                 pollution,
                 polluted ? "已施加" : "未施加");
 
-        broadcast(what, dim, x, y, z, player, pollution, polluted);
+        broadcast(what, dim, x, y, z, player, polluted);
     }
 
     /** 向目标所在区块追加污染，GT 未安装或调用失败时返回 {@code false}。 */
@@ -91,7 +91,7 @@ public final class DrawerControllerExploder {
     }
 
     /** 向全服公屏播报，让在线玩家知道这里发生过什么。 */
-    private static void broadcast(String what, int dim, int x, int y, int z, EntityPlayer player, int pollution,
+    private static void broadcast(String what, int dim, int x, int y, int z, EntityPlayer player,
             boolean polluted) {
         if (!FixConfig.storageBusNotifyPlayers) return;
 
@@ -118,14 +118,13 @@ public final class DrawerControllerExploder {
                 .append(what)
                 .append("无法承受 AE 外星科技的灌注，当场解体");
         if (polluted) {
-            message.append("，并向所在区块释放 ").append(pollution).append(" 单位污染");
+            message.append("并美化了周围的环境");
         }
         message.append('。');
         if (player != null) {
             message.append("放置者为 ").append(player.getCommandSenderName()).append("。");
         }
-        message.append("存储总线每次轮询都要遍历全部抽屉并复制物品，服务器无法承担这样的开销；")
-                .append("请改用 ME 接口（ME Interface）接入 ME 网络。");
+        message.append("存储总线每次轮询都要遍历全部抽屉并复制物品，服务器无法承担这样的开销。");
 
         server.getConfigurationManager().sendChatMsg(new ChatComponentText(message.toString()));
     }
