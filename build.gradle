@@ -22,7 +22,7 @@ buildscript {
 
 apply plugin: 'forge'
 
-version = "1.4.0"
+version = "1.5.0"
 group = "dev.dsmnh.horizon"
 archivesBaseName = "HorizonFix"
 
@@ -61,6 +61,10 @@ dependencies {
         exclude module: "log4j-core"
     }
     compileOnly("com.github.GTNewHorizons:SpongeMixins:1.3.3:dev")
+    // 只用到外部存储注册表与 IMEInventory 接口，运行期由服务端的 AE2 提供
+    compileOnly("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:rv3-beta-1095-GTNH:dev") {
+        transitive = false
+    }
 }
 
 processResources {

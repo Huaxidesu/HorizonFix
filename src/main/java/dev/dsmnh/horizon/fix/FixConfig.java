@@ -98,6 +98,15 @@ public class FixConfig {
     /** MrTJPCore 活跃区块集合防载入修复。 */
     public static boolean mrtjpBlockUpdate = true;
 
+    /** 禁止存储总线读取抽屉管理器（含其下属从站）。 */
+    public static boolean storageBusDenyDrawerController = true;
+
+    /** 禁止存储总线读取单个抽屉方块。 */
+    public static boolean storageBusDenyDrawers = false;
+
+    /** 拦截生效时向附近玩家发送聊天提示。 */
+    public static boolean storageBusNotifyPlayers = true;
+
     public static void load(File file) {
         if (file == null) return;
         Configuration cfg = new Configuration(file);
@@ -265,6 +274,26 @@ public class FixConfig {
                     "mrtjp",
                     mrtjpBlockUpdate,
                     "Prevent MrTJPCore from loading unloaded chunks when computing active chunk set.");
+
+            storageBusDenyDrawerController = cfg.getBoolean(
+                    "denyDrawerController",
+                    "ae2",
+                    storageBusDenyDrawerController,
+                    "Stop AE2 storage buses from reading a Storage Drawers drawer controller. "
+                            + "Every polling pass walks all connected drawers and copies each stored item stack with its NBT, "
+                            + "which scales with drawer count and is the main cause of the TPS drop. "
+                            + "Use an ME Interface instead of a storage bus.");
+            storageBusDenyDrawers = cfg.getBoolean(
+                    "denyDrawers",
+                    "ae2",
+                    storageBusDenyDrawers,
+                    "Also stop storage buses from reading standalone drawer blocks. "
+                            + "Disabled by default because a single drawer is cheap to poll.");
+            storageBusNotifyPlayers = cfg.getBoolean(
+                    "notifyPlayers",
+                    "ae2",
+                    storageBusNotifyPlayers,
+                    "Send a chat hint to nearby players when a storage bus is denied.");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 读取配置失败，全部使用默认值", t);
         } finally {

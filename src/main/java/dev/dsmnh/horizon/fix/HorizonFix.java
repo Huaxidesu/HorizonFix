@@ -2,6 +2,7 @@ package dev.dsmnh.horizon.fix;
 
 import java.io.File;
 
+import net.minecraft.tileentity.TileEntity;
 import net.minecraftforge.common.MinecraftForge;
 
 import org.apache.logging.log4j.LogManager;
@@ -34,7 +35,7 @@ import dev.dsmnh.horizon.fix.wr.WrNpeHandler;
         name = HorizonFix.NAME,
         version = HorizonFix.VERSION,
         acceptableRemoteVersions = "*",
-        dependencies = "after:OpenBlocks")
+        dependencies = "after:OpenBlocks;after:appliedenergistics2;after:StorageDrawers")
 public class HorizonFix {
 
     public static final String MODID = "horizonfix";
@@ -59,6 +60,45 @@ public class HorizonFix {
         registerDeathSnapshot();
         registerWirelessRedstone();
         registerWorldgenDiagnostic();
+        checkAe2StorageBusGuard();
+    }
+
+    /** 确认存储总线拦截的 mixin 已注入，注入失败时明确告警，避免误以为生效。 */
+    private void checkAe2StorageBusGuard() {
+        if (!FixConfig.storageBusDenyDrawerController && !FixConfig.storageBusDenyDrawers) {
+            LOG.info("[HorizonFix] 存储总线拦截已关闭");
+            return;
+        }
+        if (!Loader.isModLoaded("appliedenergistics2") || !Loader.isModLoaded("StorageDrawers")) {
+            LOG.info("[HorizonFix] 未检测到 AppliedEnergistics2 或 StorageDrawers，存储总线拦截不注册");
+            return;
+        }
+        dev.dsmnh.horizon.fix.ae2.StorageDrawerBlocker.beginSelfTest();
+        try {
+            // 直接构造一个抽屉管理器，走一遍 AE2 的取处理器入口：返回拦截器即说明注入生效
+            TileEntity probe = (TileEntity) Class
+                    .forName("com.jaquadro.minecraft.storagedrawers.block.tile.TileEntityController")
+                    .newInstance();
+            boolean blocked = dev.dsmnh.horizon.fix.ae2.StorageDrawerBlocker.verifySilently(probe);
+            Object handler = appeng.api.AEApi.instance().registries().externalStorage().getHandler(
+                    probe,
+                    net.minecraftforge.common.util.ForgeDirection.UNKNOWN,
+                    appeng.util.item.AEItemStackType.ITEM_STACK_TYPE,
+                    new appeng.api.networking.security.MachineSource(null));
+            boolean intercepted = handler == dev.dsmnh.horizon.fix.ae2.StorageDrawerBlocker.INSTANCE;
+            if (blocked && intercepted) {
+                LOG.info("[HorizonFix] 存储总线拦截已生效（抽屉管理器={}，单个抽屉={}）",
+                        FixConfig.storageBusDenyDrawerController ? "禁止" : "允许",
+                        FixConfig.storageBusDenyDrawers ? "禁止" : "允许");
+            } else {
+                LOG.warn("[HorizonFix] 存储总线拦截未生效（判定={}，入口={}），请检查 mixin 是否注入",
+                        blocked, intercepted);
+            }
+        } catch (Throwable t) {
+            LOG.warn("[HorizonFix] 存储总线拦截自检失败，无法确认是否生效", t);
+        } finally {
+            dev.dsmnh.horizon.fix.ae2.StorageDrawerBlocker.endSelfTest();
+        }
     }
 
     private void registerGrave() {

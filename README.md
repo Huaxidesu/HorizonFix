@@ -1,12 +1,13 @@
 # HorizonFix
 
-GTNH 1.7.10 服务端修复合集。**1.4.0 正式支持 GTNH 2.9.1**（`extrautils.divisionSigil` 默认关闭以防与 2.9.1 上游 Hodgepodge 冲突，保留 2.9.0 开关兼容）；**1.3.0 新增墓碑未生成时的自动返还**：放置彻底失败时不再只提示管理员恢复，而是把物品直接放回玩家背包；**1.3.1 修复墓碑生成后被凋零/爆炸破坏时被误判为「未生成」而重复返还的问题**。事件类修复与第三方 mixin 适配各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器或 mixin 不注册，运行期开销为零；删除 jar 即完全回滚。第三方模组适配以条件加载的 mixin 实现，只注入 ExtraUtilities、Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的类；目标模组缺失时不加载。
+GTNH 1.7.10 服务端修复合集。**1.5.0 禁止存储总线读取抽屉管理器**：AE2 存储总线贴在 Storage Drawers 抽屉管理器上会周期性遍历全部抽屉并复制物品，抽屉越多 TPS 下降越明显，本版在 AE2 的外部存储入口处拦截；**1.4.0 正式支持 GTNH 2.9.1**（`extrautils.divisionSigil` 默认关闭以防与 2.9.1 上游 Hodgepodge 冲突，保留 2.9.0 开关兼容）；**1.3.0 新增墓碑未生成时的自动返还**：放置彻底失败时不再只提示管理员恢复，而是把物品直接放回玩家背包；**1.3.1 修复墓碑生成后被凋零/爆炸破坏时被误判为「未生成」而重复返还的问题**。事件类修复与第三方 mixin 适配各自在 `config/HorizonFix.cfg` 中有独立开关，关闭后监听器或 mixin 不注册，运行期开销为零；删除 jar 即完全回滚。第三方模组适配以条件加载的 mixin 实现，只注入 ExtraUtilities、Botania、MrTJPCore 自身的类，不改写原版类与 Crucible 补丁过的类；目标模组缺失时不加载。
 
 ## 版本与整合包兼容性
 
 | HorizonFix 版本 | 整合包兼容性 | 说明 |
 |---|---|---|
-| **`1.4.0`+（最新）** | **GTNH 2.9.1**（默认）<br>GTNH 2.9.0（可选） | **正式适配 GTNH 2.9.1**。由于 GTNH 2.9.1 已由上游 Hodgepodge 内置分割徽章修复，本版将 `extrautils.divisionSigil` **默认关闭**以防冲突；若用于 GTNH 2.9.0，手动将该项设为 `true` 即可 |
+| **`1.5.0`（最新）** | **GTNH 2.9.1**（默认）<br>GTNH 2.9.0（可选） | 在 1.4.0 基础上新增存储总线拦截（`ae2` 节），其余修复与兼容性同 1.4.0 |
+| **`1.4.0`** | **GTNH 2.9.1**（默认）<br>GTNH 2.9.0（可选） | **正式适配 GTNH 2.9.1**。由于 GTNH 2.9.1 已由上游 Hodgepodge 内置分割徽章修复，本版将 `extrautils.divisionSigil` **默认关闭**以防冲突；若用于 GTNH 2.9.0，手动将该项设为 `true` 即可 |
 | **`1.3.1` 及以下**<br>（`1.2.0` ~ `1.3.1`） | **GTNH 2.9.0** | 对应兼容 GTNH 2.9.0。默认启用分割徽章在混合服务端的激活仪式、右键判定与围城信标修复 |
 
 ### GTNH 2.9.1 上游修复说明
@@ -28,6 +29,7 @@ GTNH 2.9.1 已由上游官方更新修复了以下项目：
 | 死亡快照 | 死亡被取消后 OpenBlocks 仍会写背包快照，恢复即复制物品 | `deathSnapshot` |
 | 级联生成诊断 | 记录区块填充期间触发的相邻区块载入 | `worldgen` |
 | **分割徽章激活** | 修复 ExtraUtilities 分割徽章在混合服务端无法激活、激活后右键附魔台或信标无响应 | `extrautils.divisionSigil`<br>（2.9.1 原生已修，默认 `false`） |
+| 存储总线与抽屉 | 禁止存储总线读取抽屉管理器，避免轮询全部抽屉造成 TPS 下降 | `ae2` |
 | 其他第三方适配 | ExtraUtilities 垃圾桶读档、Botania 亮度查询、MrTJPCore 活跃区块集合 | `extrautils.trashCan`<br>`botania.specialFlower`<br>`mrtjp.blockUpdate` |
 
 mixin 运行期依赖 Mixin 库，GTNH 2.9.0 / 2.9.1 自带的 UniMixins 已提供，无需额外安装。
@@ -243,7 +245,55 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 ---
 
-## 六、配置
+## 六、存储总线与抽屉管理器（`ae2`）
+
+### 现象
+
+把 AE2 的存储总线贴在 Storage Drawers 的抽屉管理器（Drawer Controller）上，服务器 TPS 明显下降；
+抽屉越多、总线越多，下降越明显。
+
+### 原因
+
+Storage Drawers 向 AE2 注册的外部存储处理器把整个抽屉组包装成 `DrawerMEInventory`
+（`DrawerExternalStorageHandler.canHandle` 判定 `channel == StorageChannel.ITEMS && te instanceof IDrawerGroup`）。
+存储总线的轮询链路是：
+
+```text
+PartStorageBus（每 5–60 tick）
+  → MEMonitorIInventory.onTick()
+    → IMEAdaptor.iterator()         每次新建列表
+      → DrawerMEInventory.getAvailableItems()
+        → 遍历管理器下全部抽屉
+          → BaseDrawerData.getStoredItemCopy()   每个非空抽屉做一次完整 ItemStack.copy()（含 NBT）
+```
+
+因此单次轮询的开销与抽屉数量成正比，且每次都重新复制一遍物品数据。这是结构性问题，
+上游已知多年（AE2 issue #2831、Storage Drawers issue #442），作者明确表示不会修改。
+
+### 为什么不能靠配置解决
+
+- **AE2 的 `TickRates`** 只能把轮询间隔从 5–60 tick 调大，单次开销不变，TPS 仍随抽屉数量恶化；
+- **关闭 Storage Drawers 的 `enableAE2`** 反而更慢：抽屉管理器实现了 `IInventory`，
+  AE2 会退化到兜底的 `ExternalIInv`，逐槽位比对，且丢失 void / smart 语义。
+
+### 修复
+
+`MixinAe2ExternalStorageRegistry` 注入 `ExternalStorageRegistry.getHandler`，
+在入口处按类名识别抽屉方块并返回一个恒空的库存：
+
+- 恒空而非 `null`：返回 `null` 会让存储总线认为邻接方块不可用，每 tick 重建缓存并重新调度，开销更大；
+  返回合法 handler 后总线没有监视器，会自行进入休眠。
+- 按类名判定，不加载 Storage Drawers 的类：`TileEntityController`、`TileEntitySlave`（下属从站，
+  读写全部代理到管理器，开销相同）、`TileEntityDrawers`（单个抽屉，默认不拦）。
+- 拦截生效时向 8 格内的玩家发送一次聊天提示，并在日志记录坐标，避免被误判为总线故障。
+- 启动时做一次功能性自检：构造一个抽屉管理器实例，走一遍 AE2 的取处理器入口，
+  确认返回的是拦截器。生效时日志为 `存储总线拦截已生效`，注入失败会明确告警，不会静默失效。
+
+替代做法是改用 ME 接口（ME Interface）接入 ME 网络，接口只搬运指定物品，不做全量扫描。
+
+---
+
+## 七、配置
 
 文件：`config/HorizonFix.cfg`（首次启动自动生成，注释为英文以避免 GBK/UTF-8 编码问题）。
 
@@ -321,9 +371,17 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 |---|---|---|
 | `blockUpdate` | `true` | MrTJPCore 活跃区块集合只加入已加载区块，避免后续计算带入未加载区块 |
 
+### `ae2`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `denyDrawerController` | `true` | 禁止存储总线读取抽屉管理器及其下属从站 |
+| `denyDrawers` | `false` | 同时禁止读取单个抽屉方块。单抽屉开销小，默认不拦 |
+| `notifyPlayers` | `true` | 拦截生效时向附近玩家发送聊天提示 |
+
 ---
 
-## 七、诊断日志
+## 八、诊断日志
 
 墓碑失败时（受 `grave.diagnosticLimit` 限制）：
 
@@ -374,9 +432,19 @@ Witchery 的吸血鬼免疫在 `NORMAL` 才取消死亡，顺序在后。于是�
 
 最后一条出现在世界未载入且等待 200 tick 仍无法判定的情况，此时不做返还。
 
+存储总线拦截：启动时输出一次自检结果，之后每个被拦截的方块输出一次坐标。
+
+```text
+[HorizonFix] 存储总线拦截已生效（抽屉管理器=禁止，单个抽屉=允许）
+[HorizonFix] 已禁止存储总线读取抽屉管理器 @dim=0 (128, 64, -30)
+```
+
+自检失败时输出 `存储总线拦截未生效（判定=…，入口=…）`，说明 mixin 没有注入，此时存储总线仍会读取抽屉。
+坐标记录上限 32 条，超过后只发送玩家提示，避免日志被大量总线刷屏。
+
 ---
 
-## 八、关于「重生与放置撞在同一 tick」
+## 九、关于「重生与放置撞在同一 tick」
 
 交接资料提出：自动重生任务与墓碑放置排在同一 tick，顺序不稳，重生先执行时区块失去加载来源。
 按 1.7.10 的实际调用链，**这条不成立**：
@@ -398,10 +466,10 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ---
 
-## 九、安装与回滚
+## 十、安装与回滚
 
-1. 构建产物 `build/libs/HorizonFix-1.4.0.jar`；
-2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.4.0.jar`；
+1. 构建产物 `build/libs/HorizonFix-1.5.0.jar`；
+2. 放入服务端 `mods/`，建议按现有命名规范改为 `[S][修复]HorizonFix-1.5.0.jar`；
 3. **客户端不需要安装**：`acceptableRemoteVersions = "*"` 允许缺少该模组的客户端进入，第三方适配均作用于服务端代码路径；
 4. 重启服务端。
 
@@ -413,7 +481,7 @@ worldserver.func_73039_n().func_72788_a();                 // 区块关注更新
 
 ---
 
-## 十、构建
+## 十一、构建
 
 ```bash
 export JAVA_HOME=<JDK 8>
