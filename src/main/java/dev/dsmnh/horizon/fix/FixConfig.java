@@ -107,6 +107,15 @@ public class FixConfig {
     /** 拦截生效时向附近玩家发送聊天提示。 */
     public static boolean storageBusNotifyPlayers = true;
 
+    /** 玩家把存储总线贴到抽屉管理器上时立即引爆该抽屉管理器。 */
+    public static boolean storageBusExplodeOnPlace = true;
+
+    /** 爆炸强度，取值对应 GT 机器爆炸的强度表（1.0 为低压机器，4.0 与一个 TNT 相当）。 */
+    public static double storageBusExplosionPower = 4.0D;
+
+    /** 爆炸向所在区块追加的污染量，GT 未安装时忽略。 */
+    public static int storageBusExplosionPollution = 3000000;
+
     public static void load(File file) {
         if (file == null) return;
         Configuration cfg = new Configuration(file);
@@ -294,6 +303,32 @@ public class FixConfig {
                     "ae2",
                     storageBusNotifyPlayers,
                     "Send a chat hint to nearby players when a storage bus is denied.");
+            storageBusExplodeOnPlace = cfg.getBoolean(
+                    "explodeOnPlace",
+                    "ae2",
+                    storageBusExplodeOnPlace,
+                    "Detonate the drawer controller the moment a player attaches a storage bus to it, "
+                            + "mirroring the GT machine explosion flow: clear the block, create the explosion, then add pollution. "
+                            + "Only fires on placement, never on chunk load, so existing builds survive a restart. "
+                            + "The runtime read block below still applies as a fallback.");
+            storageBusExplosionPower = cfg.getFloat(
+                    "explosionPower",
+                    "ae2",
+                    (float) storageBusExplosionPower,
+                    0.0F,
+                    20.0F,
+                    "Explosion strength, using the GT machine explosion scale: 1.0 is a low voltage machine, "
+                            + "4.0 equals one block of TNT, 20.0 is the maximum GT uses. 0 disables the explosion "
+                            + "while keeping the pollution and the broadcast.");
+            storageBusExplosionPollution = cfg.getInt(
+                    "explosionPollution",
+                    "ae2",
+                    storageBusExplosionPollution,
+                    0,
+                    100000000,
+                    "Pollution added to the chunk on detonation. GT defaults to 100000 per machine explosion; "
+                            + "3000000 exceeds every GT pollution threshold (smog, poison, vegetation death, acid rain) "
+                            + "and spreads to neighbouring chunks. 0 disables it. Requires GregTech.");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 读取配置失败，全部使用默认值", t);
         } finally {

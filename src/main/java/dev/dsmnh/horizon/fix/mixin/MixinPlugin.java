@@ -91,10 +91,14 @@ public class MixinPlugin implements IMixinConfigPlugin {
         if (FixConfig.mrtjpBlockUpdate && isModPresent("MrTJPCore", "mrtjp.core.world.BlockUpdateHandler$")) {
             result.add("MixinMrTjpBlockUpdateHandler");
         }
+        final boolean ae2AndDrawersPresent = isModPresent("appliedenergistics2", "appeng.api.AEApi")
+                && isModPresent("StorageDrawers", "com.jaquadro.minecraft.storagedrawers.StorageDrawers");
         if ((FixConfig.storageBusDenyDrawerController || FixConfig.storageBusDenyDrawers)
-                && isModPresent("appliedenergistics2", "appeng.api.AEApi")
-                && isModPresent("StorageDrawers", "com.jaquadro.minecraft.storagedrawers.StorageDrawers")) {
+                && ae2AndDrawersPresent) {
             result.add("MixinAe2ExternalStorageRegistry");
+        }
+        if (FixConfig.storageBusExplodeOnPlace && ae2AndDrawersPresent) {
+            result.add("MixinAe2CableBusPlacement");
         }
         LOG.info("[HorizonFix] 适配 mixin 已启用 {} 项：{}", result.size(), result);
         return result;
