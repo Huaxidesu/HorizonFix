@@ -114,7 +114,7 @@ public class FixConfig {
     public static double storageBusExplosionPower = 4.0D;
 
     /** 爆炸向所在区块追加的污染量，GT 未安装时忽略。 */
-    public static int storageBusExplosionPollution = 3000000;
+    public static int storageBusExplosionPollution = 30000000;
 
     public static void load(File file) {
         if (file == null) return;
@@ -325,10 +325,11 @@ public class FixConfig {
                     "ae2",
                     storageBusExplosionPollution,
                     0,
-                    100000000,
+                    1000000000,
                     "Pollution added to the chunk on detonation. GT defaults to 100000 per machine explosion; "
-                            + "3000000 exceeds every GT pollution threshold (smog, poison, vegetation death, acid rain) "
-                            + "and spreads to neighbouring chunks. 0 disables it. Requires GregTech.");
+                            + "30000000 is 300 times that and exceeds every GT pollution threshold (smog, poison, "
+                            + "vegetation death, acid rain) by more than an order of magnitude, and spreads to "
+                            + "neighbouring chunks. 0 disables it. Requires GregTech.");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 读取配置失败，全部使用默认值", t);
         } finally {

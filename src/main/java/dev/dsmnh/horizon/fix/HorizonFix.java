@@ -61,6 +61,30 @@ public class HorizonFix {
         registerWirelessRedstone();
         registerWorldgenDiagnostic();
         checkAe2StorageBusGuard();
+        registerDrawerControllerPlaceGuard();
+    }
+
+    /**
+     * 注册「先有存储总线、后放抽屉管理器」方向的爆炸判定。
+     *
+     * <p>反方向（先有抽屉管理器、后贴存储总线）由 {@code MixinAe2CableBusPlacement} 覆盖，
+     * 两者合起来才构成完整规则。</p>
+     */
+    private void registerDrawerControllerPlaceGuard() {
+        if (!FixConfig.storageBusExplodeOnPlace) {
+            LOG.info("[HorizonFix] 抽屉管理器放置爆炸已关闭");
+            return;
+        }
+        if (!Loader.isModLoaded("appliedenergistics2") || !Loader.isModLoaded("StorageDrawers")) {
+            LOG.info("[HorizonFix] 未检测到 AppliedEnergistics2 或 StorageDrawers，抽屉管理器放置爆炸不注册");
+            return;
+        }
+        try {
+            MinecraftForge.EVENT_BUS.register(new dev.dsmnh.horizon.fix.ae2.DrawerControllerPlaceGuard());
+            LOG.info("[HorizonFix] 抽屉管理器放置爆炸已注册（存储总线贴附方向由 mixin 负责）");
+        } catch (Throwable t) {
+            LOG.warn("[HorizonFix] 抽屉管理器放置爆炸注册失败，该方向不生效", t);
+        }
     }
 
     /** 确认存储总线拦截的 mixin 已注入，注入失败时明确告警，避免误以为生效。 */
