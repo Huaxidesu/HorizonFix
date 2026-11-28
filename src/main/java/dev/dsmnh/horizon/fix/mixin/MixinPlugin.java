@@ -100,6 +100,11 @@ public class MixinPlugin implements IMixinConfigPlugin {
         if (FixConfig.storageBusExplodeOnPlace && ae2AndDrawersPresent) {
             result.add("MixinAe2CableBusPlacement");
         }
+        if (FixConfig.cruciblePortalFix && isBukkitPresent()) {
+            result.add("MixinCruciblePortalFix");
+        } else if (FixConfig.cruciblePortalFix) {
+            LOG.info("[HorizonFix] 未检测到 Bukkit/Crucible，传送门修复不加载");
+        }
         LOG.info("[HorizonFix] 适配 mixin 已启用 {} 项：{}", result.size(), result);
         return result;
     }
@@ -110,6 +115,18 @@ public class MixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
+    }
+
+    /** 检测服务端是否运行在 Bukkit/Crucible 混合环境下。 */
+    private static boolean isBukkitPresent() {
+        try {
+            if (Launch.classLoader != null
+                    && Launch.classLoader.getResource("org/bukkit/Bukkit.class") != null) {
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     /** 优先按类路径资源判定；启动早期 jar 尚未加入类路径时回退到多个候选 mods 目录。 */

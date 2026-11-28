@@ -116,6 +116,9 @@ public class FixConfig {
     /** 爆炸向所在区块追加的污染量，GT 未安装时忽略。 */
     public static int storageBusExplosionPollution = 30000000;
 
+    /** Crucible 传送门区块加载死锁修复。 */
+    public static boolean cruciblePortalFix = true;
+
     public static void load(File file) {
         if (file == null) return;
         Configuration cfg = new Configuration(file);
@@ -330,6 +333,14 @@ public class FixConfig {
                             + "30000000 is 300 times that and exceeds every GT pollution threshold (smog, poison, "
                             + "vegetation death, acid rain) by more than an order of magnitude, and spreads to "
                             + "neighbouring chunks. 0 disables it. Requires GregTech.");
+
+            cruciblePortalFix = cfg.getBoolean(
+                    "portalFix",
+                    "crucible",
+                    cruciblePortalFix,
+                    "Set destination.findingSpawnPoint=true during Crucible's transferPlayerToDimension "
+                            + "to prevent Hodgepodge's EntityGuard from blocking chunk loads needed by "
+                            + "portal search. Only effective when Hodgepodge's preventEntityChunkLoading is enabled.");
         } catch (Throwable t) {
             LOG.warn("[HorizonFix] 读取配置失败，全部使用默认值", t);
         } finally {
